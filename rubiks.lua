@@ -184,16 +184,120 @@ function Rubik:turnCCW(face)
 end
 
 
-function rubikTurnTests()
-    local ru = Rubik:new()
-    -- for testing, initialize stickers uniquely
-    local lab = 1
-    for i = 1, 6 do
-        for j = 1, 3 do
-            for k = 1, 3 do
-                ru.grid[i][j][k] = lab
-                lab = lab + 1
+function Rubik:turn2(face)
+    self:turnCW(face)
+    self:turnCW(face)
+end
+
+
+function verify(grid, expected)
+    for i = 1,6 do
+        for j = 1,3 do
+            for k = 1,3 do
+                assert(grid[i][j][k] == expected[i][j][k],
+                       string.format("Discrepency at %d, %d, %d, saw %d, expected %d", i, j, k, grid[i][j][k], expected[i][j][k]))
             end
         end
     end
 end
+
+
+function _Tperm(ru)
+    ru:turnCW(RIGHT)
+    ru:turnCW(UP)
+    ru:turnCCW(RIGHT)
+    ru:turnCCW(UP)
+
+    ru:turnCCW(RIGHT)
+    ru:turnCW(FRONT)
+    ru:turn2(RIGHT)
+
+    ru:turnCCW(UP)
+    ru:turnCCW(RIGHT)
+    ru:turnCCW(UP)
+
+    ru:turnCW(RIGHT)
+    ru:turnCW(UP)
+    ru:turnCCW(RIGHT)
+    ru:turnCCW(FRONT)
+end
+
+function rubikTurnTests()
+    local ru = Rubik:new()
+    -- too lazy to test comprehensively, going to test with some blindsolve
+    -- methods instead.
+    _Tperm(ru)
+
+    expected = Rubik:new().grid
+    expected[LEFT][1][2] = RIGHT
+    expected[FRONT][1][3] = RIGHT
+    expected[RIGHT][1][1] = BACK
+    expected[RIGHT][1][2] = LEFT
+    expected[RIGHT][1][3] = FRONT
+    expected[BACK][1][1] = RIGHT
+
+    verify(ru.grid, expected)
+    print('Passed T-perm')
+
+    -- T-perm with setup to test left
+    ru = Rubik:new()
+    ru:turnCW(LEFT)
+    _Tperm(ru)
+    ru:turnCCW(LEFT)
+
+    expected = Rubik:new().grid
+    expected[UP][2][3] = BACK
+    expected[LEFT][2][1] = RIGHT
+    expected[FRONT][1][3] = RIGHT
+    expected[RIGHT][1][1] = BACK
+    expected[RIGHT][1][2] = LEFT
+    expected[RIGHT][1][3] = FRONT
+    expected[BACK][1][1] = RIGHT
+    expected[BACK][2][3] = UP
+
+    verify(ru.grid, expected)
+    print("Passed L (T-perm) L'")
+
+    -- T-perm with setup to test down
+    ru = Rubik:new()
+    ru:turnCW(DOWN)
+    ru:turn2(LEFT)
+    _Tperm(ru)
+    ru:turn2(LEFT)
+    ru:turnCCW(DOWN)
+
+    expected = Rubik:new().grid
+    expected[UP][2][3] = DOWN
+    expected[FRONT][1][3] = RIGHT
+    expected[RIGHT][1][1] = BACK
+    expected[RIGHT][1][2] = BACK
+    expected[RIGHT][1][3] = FRONT
+    expected[BACK][1][1] = RIGHT
+    expected[BACK][3][2] = RIGHT
+    expected[DOWN][3][2] = UP
+
+    verify(ru.grid, expected)
+    print("Passed D L2 (T-perm) L2 D'")
+
+    -- T-perm with setup to test back
+    -- (You would never do this with Pochmann but it moves very few stickers
+    ru = Rubik:new()
+    ru:turnCW(BACK)
+    _Tperm(ru)
+    ru:turnCCW(BACK)
+
+    expected = Rubik:new().grid
+    expected[UP][3][3] = RIGHT
+    expected[LEFT][1][2] = RIGHT
+    expected[FRONT][1][3] = DOWN
+    expected[RIGHT][1][1] = BACK
+    expected[RIGHT][1][2] = LEFT
+    expected[RIGHT][3][3] = UP
+    expected[BACK][3][1] = RIGHT
+    expected[DOWN][3][3] = FRONT
+
+    verify(ru.grid, expected)
+    print("Passed B (T-perm) B'")
+end
+
+rubikTurnTests()
