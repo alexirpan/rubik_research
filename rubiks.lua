@@ -190,7 +190,24 @@ function Rubik:turn2(face)
 end
 
 
-function verify(grid, expected)
+function Rubik:toFeatures()
+    -- Turns cube into features for neural net
+    -- Uses a one-hot encoding of sticker colors.
+    local feat = torch.Tensor(6 * 3 * 3, 6):zero()
+    local c = 1
+    for i = 1,6 do
+        for j = 1,3 do
+            for k = 1,3 do
+                feat[c][self.grid[i][j][k]] = 1
+                c = c + 1
+            end
+        end
+    end
+    return feat
+end
+
+
+function _assertCubeEqual(grid, expected)
     for i = 1,6 do
         for j = 1,3 do
             for k = 1,3 do
@@ -236,7 +253,7 @@ function rubikTurnTests()
     expected[RIGHT][1][3] = FRONT
     expected[BACK][1][1] = RIGHT
 
-    verify(ru.grid, expected)
+    _assertCubeEqual(ru.grid, expected)
     print('Passed T-perm')
 
     -- T-perm with setup to test left
@@ -255,7 +272,7 @@ function rubikTurnTests()
     expected[BACK][1][1] = RIGHT
     expected[BACK][2][3] = UP
 
-    verify(ru.grid, expected)
+    _assertCubeEqual(ru.grid, expected)
     print("Passed L (T-perm) L'")
 
     -- T-perm with setup to test down
@@ -276,7 +293,7 @@ function rubikTurnTests()
     expected[BACK][3][2] = RIGHT
     expected[DOWN][3][2] = UP
 
-    verify(ru.grid, expected)
+    _assertCubeEqual(ru.grid, expected)
     print("Passed D L2 (T-perm) L2 D'")
 
     -- T-perm with setup to test back
@@ -296,8 +313,10 @@ function rubikTurnTests()
     expected[BACK][3][1] = RIGHT
     expected[DOWN][3][3] = FRONT
 
-    verify(ru.grid, expected)
+    _assertCubeEqual(ru.grid, expected)
     print("Passed B (T-perm) B'")
 end
 
 rubikTurnTests()
+ru = Rubik:new()
+ru:toFeatures()
