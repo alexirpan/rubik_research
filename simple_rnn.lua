@@ -44,7 +44,7 @@ offsets = torch.LongTensor(offsets)
 
 -- training
 iter = 1
-max_iters = math.pow(10, 4)
+max_iters = math.pow(10, 3)
 while iter < max_iters do
     iter = iter + 1
     -- sequence of rho time steps

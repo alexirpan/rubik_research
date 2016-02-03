@@ -315,8 +315,7 @@ function rubikTurnTests()
 
     _assertCubeEqual(ru.grid, expected)
     print("Passed B (T-perm) B'")
+    print("All Rubik's cube tests passed")
 end
 
 rubikTurnTests()
-ru = Rubik:new()
-ru:toFeatures()
