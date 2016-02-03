@@ -2,7 +2,7 @@ require 'rnn'
 require 'rubiks'
 
 -- Number of moves to use when scrambling
-EPISODE_LENGTH = 3
+EPISODE_LENGTH = 4
 -- Number of possible turns of the cube
 N_MOVES = 12
 
@@ -74,12 +74,12 @@ end
 -- training
 torch.manualSeed(987)
 epoch = 1
-n_epochs = 20
+n_epochs = 40
 batchSize = 8
 learningRate = 0.1
-n_train = 10000
+n_train = 50000
 n_valid = 1000
-n_test = 5000
+n_test = 10000
 
 
 data = createDataset(n_train, n_valid, n_test)
@@ -126,10 +126,9 @@ while epoch < n_epochs do
         end
     end
     print(string.format("Epoch %d: Average training loss = %f, training accuracy = %f %%", epoch, err / n_train, correct / n_train * 100))
-    epoch = epoch + 1
 
     -- test error
-    err, correct = 0, 0
+    local test_err, test_correct = 0, 0
 
     for i = 1, n_test do
         local inputs, targets = {}, {}
@@ -137,12 +136,25 @@ while epoch < n_epochs do
         inputs[i] = data['test'][i]
         targets[i] = data['test_labels'][i]
         outputs[i] = model:forward(inputs[i])
-        err = err + loss:forward(outputs[i], targets[i])
+        test_err = test_err + loss:forward(outputs[i], targets[i])
         _, best = outputs[i]:max(1)
         if best[1] == targets[i] then
-            correct = correct + 1
+            test_correct = test_correct + 1
         end
     end
+    print(string.format("Test loss = %f, test accuracy = %f %%", test_err / n_test, test_correct / n_test * 100))
 
-    print(string.format("Test loss = %f, test accuracy = %f %%", err / n_test, correct / n_test * 100))
+    -- save epoch data
+    saved = {
+        model = model,
+        train_err = err,
+        train_acc = correct / n_train * 100,
+        test_err = test_err,
+        test_acc = test_correct / n_test * 100
+    }
+
+    filename = 'models/rubiks_epoch' .. epoch
+    torch.save(filename, saved)
+
+    epoch = epoch + 1
 end
