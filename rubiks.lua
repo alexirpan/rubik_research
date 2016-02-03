@@ -9,6 +9,9 @@ RIGHT = 4
 BACK = 5
 DOWN = 6
 
+N_STICKERS = 6 * 3 * 3
+N_COLORS = 6
+
 
 function Rubik:new()
     -- represent cube by stickers on each face
