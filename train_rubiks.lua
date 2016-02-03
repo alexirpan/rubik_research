@@ -2,7 +2,7 @@ require 'rnn'
 require 'rubiks'
 
 -- Number of moves to use when scrambling
-EPISODE_LENGTH = 2
+EPISODE_LENGTH = 3
 -- Number of possible turns of the cube
 N_MOVES = 12
 
@@ -77,21 +77,26 @@ epoch = 1
 n_epochs = 20
 batchSize = 8
 learningRate = 0.1
+n_train = 10000
+n_valid = 1000
+n_test = 5000
 
-data = createDataset(10000, 1000, 1000)
+
+data = createDataset(n_train, n_valid, n_test)
 -- flatten for fully connected
-data['train']:resize(10000 * EPISODE_LENGTH,
+data['train']:resize(n_train * EPISODE_LENGTH,
                      N_STICKERS * N_COLORS)
-data['valid']:resize(1000 * EPISODE_LENGTH,
+data['valid']:resize(n_test * EPISODE_LENGTH,
                      N_STICKERS * N_COLORS)
-data['test']:resize(1000 * EPISODE_LENGTH,
+data['test']:resize(n_test * EPISODE_LENGTH,
                      N_STICKERS * N_COLORS)
 model, loss = fullyConnected()
 
 while epoch < n_epochs do
     print('Starting epoch', epoch)
-    local err = 0
-    for ind = 1, 10000 / batchSize do
+    local err, correct = 0, 0
+
+    for ind = 1, n_train / batchSize do
         local inputs, targets = {}, {}
         start = (ind - 1) * batchSize + 1
         for i = 1, batchSize do
@@ -107,20 +112,26 @@ while epoch < n_epochs do
             model:zeroGradParameters()
             outputs[i] = model:forward(inputs[i])
             err = err + loss:forward(outputs[i], targets[i])
+
+            -- compute accuracy
+            _, best = outputs[i]:max(1)
+            if best[1] == targets[i] then
+                correct = correct + 1
+            end
+
             -- backprop
             gradOutputs[i] = loss:backward(outputs[i], targets[i])
             model:backward(inputs[i], gradOutputs[i])
             model:updateParameters(learningRate)
         end
     end
-    print(string.format("Epoch %d: Average training loss = %f", epoch, err / 10000))
+    print(string.format("Epoch %d: Average training loss = %f, training accuracy = %f %%", epoch, err / n_train, correct / n_train * 100))
     epoch = epoch + 1
 
     -- test error
-    err = 0
-    correct = 0
+    err, correct = 0, 0
 
-    for i = 1, 1000 do
+    for i = 1, n_test do
         local inputs, targets = {}, {}
         local outputs = {}
         inputs[i] = data['test'][i]
@@ -133,6 +144,5 @@ while epoch < n_epochs do
         end
     end
 
-    print(string.format("Test loss = %f", err / 1000))
-    print(string.format("Test accuracy = %f", correct / 1000))
+    print(string.format("Test loss = %f, test accuracy = %f %%", err / n_test, correct / n_test * 100))
 end
