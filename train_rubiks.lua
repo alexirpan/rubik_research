@@ -71,97 +71,99 @@ function fullyConnected()
 end
 
 
--- training
-torch.manualSeed(987)
-epoch = 1
-n_epochs = 40
-batchSize = 8
-learningRate = 0.1
-n_train = 50000
-n_valid = 1000
-n_test = 10000
+function trainModel()
+    -- training
+    torch.manualSeed(987)
+    epoch = 1
+    n_epochs = 40
+    batchSize = 8
+    learningRate = 0.1
+    n_train = 50000
+    n_valid = 1000
+    n_test = 10000
 
 
-data = createDataset(n_train, n_valid, n_test)
--- flatten for fully connected
-data['train']:resize(n_train * EPISODE_LENGTH,
-                     N_STICKERS * N_COLORS)
-data['valid']:resize(n_test * EPISODE_LENGTH,
-                     N_STICKERS * N_COLORS)
-data['test']:resize(n_test * EPISODE_LENGTH,
-                     N_STICKERS * N_COLORS)
-model, loss = fullyConnected()
+    data = createDataset(n_train, n_valid, n_test)
+    -- flatten for fully connected
+    data['train']:resize(n_train * EPISODE_LENGTH,
+                         N_STICKERS * N_COLORS)
+    data['valid']:resize(n_test * EPISODE_LENGTH,
+                         N_STICKERS * N_COLORS)
+    data['test']:resize(n_test * EPISODE_LENGTH,
+                         N_STICKERS * N_COLORS)
+    model, loss = fullyConnected()
 
-best_acc = 0
+    best_acc = 0
 
-while epoch < n_epochs do
-    print('Starting epoch', epoch)
-    local err, correct = 0, 0
+    while epoch < n_epochs do
+        print('Starting epoch', epoch)
+        local err, correct = 0, 0
 
-    for ind = 1, n_train / batchSize do
-        local inputs, targets = {}, {}
-        start = (ind - 1) * batchSize + 1
-        for i = 1, batchSize do
-            inputs[i] = data['train'][start + i-1]
-            targets[i] = data['train_labels'][start + i-1]
-        end
-
-        local outputs = {}
-        local gradOutputs, gradInputs = {}, {}
-
-        for i = 1, batchSize do
-            -- forward sequence
-            model:zeroGradParameters()
-            outputs[i] = model:forward(inputs[i])
-            err = err + loss:forward(outputs[i], targets[i])
-
-            -- compute accuracy
-            _, best = outputs[i]:max(1)
-            if best[1] == targets[i] then
-                correct = correct + 1
+        for ind = 1, n_train / batchSize do
+            local inputs, targets = {}, {}
+            start = (ind - 1) * batchSize + 1
+            for i = 1, batchSize do
+                inputs[i] = data['train'][start + i-1]
+                targets[i] = data['train_labels'][start + i-1]
             end
 
-            -- backprop
-            gradOutputs[i] = loss:backward(outputs[i], targets[i])
-            model:backward(inputs[i], gradOutputs[i])
-            model:updateParameters(learningRate)
+            local outputs = {}
+            local gradOutputs, gradInputs = {}, {}
+
+            for i = 1, batchSize do
+                -- forward sequence
+                model:zeroGradParameters()
+                outputs[i] = model:forward(inputs[i])
+                err = err + loss:forward(outputs[i], targets[i])
+
+                -- compute accuracy
+                _, best = outputs[i]:max(1)
+                if best[1] == targets[i] then
+                    correct = correct + 1
+                end
+
+                -- backprop
+                gradOutputs[i] = loss:backward(outputs[i], targets[i])
+                model:backward(inputs[i], gradOutputs[i])
+                model:updateParameters(learningRate)
+            end
         end
-    end
-    print(string.format("Epoch %d: Average training loss = %f, training accuracy = %f %%", epoch, err / n_train, correct / n_train * 100))
+        print(string.format("Epoch %d: Average training loss = %f, training accuracy = %f %%", epoch, err / n_train, correct / n_train * 100))
 
-    -- test error
-    local test_err, test_correct = 0, 0
+        -- test error
+        local test_err, test_correct = 0, 0
 
-    for i = 1, n_test do
-        local inputs, targets = {}, {}
-        local outputs = {}
-        inputs[i] = data['test'][i]
-        targets[i] = data['test_labels'][i]
-        outputs[i] = model:forward(inputs[i])
-        test_err = test_err + loss:forward(outputs[i], targets[i])
-        _, best = outputs[i]:max(1)
-        if best[1] == targets[i] then
-            test_correct = test_correct + 1
+        for i = 1, n_test do
+            local inputs, targets = {}, {}
+            local outputs = {}
+            inputs[i] = data['test'][i]
+            targets[i] = data['test_labels'][i]
+            outputs[i] = model:forward(inputs[i])
+            test_err = test_err + loss:forward(outputs[i], targets[i])
+            _, best = outputs[i]:max(1)
+            if best[1] == targets[i] then
+                test_correct = test_correct + 1
+            end
         end
-    end
-    print(string.format("Test loss = %f, test accuracy = %f %%", test_err / n_test, test_correct / n_test * 100))
+        print(string.format("Test loss = %f, test accuracy = %f %%", test_err / n_test, test_correct / n_test * 100))
 
-    -- save epoch data
-    saved = {
-        model = model,
-        train_err = err / n_train,
-        train_acc = correct / n_train * 100,
-        test_err = test_err / n_test,
-        test_acc = test_correct / n_test * 100
-    }
-    if saved.test_acc > best_acc then
-        best_acc = saved.test_acc
-        filename = 'models/rubiks_best'
+        -- save epoch data
+        saved = {
+            model = model,
+            train_err = err / n_train,
+            train_acc = correct / n_train * 100,
+            test_err = test_err / n_test,
+            test_acc = test_correct / n_test * 100
+        }
+        if saved.test_acc > best_acc then
+            best_acc = saved.test_acc
+            filename = 'models/rubiks_best'
+            torch.save(filename, saved)
+        end
+
+        filename = 'models/rubiks_epoch' .. epoch
         torch.save(filename, saved)
+
+        epoch = epoch + 1
     end
-
-    filename = 'models/rubiks_epoch' .. epoch
-    torch.save(filename, saved)
-
-    epoch = epoch + 1
 end

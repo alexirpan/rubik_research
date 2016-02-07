@@ -193,6 +193,16 @@ function Rubik:turn2(face)
 end
 
 
+function Rubik:isSolved()
+    for i = 1,6 do
+        for j = 1,3 do
+            for k = 1,3 do
+                if self.grid[i][j][k] ~= i then
+                    return false
+    return true
+end
+
+
 function Rubik:toFeatures()
     -- Turns cube into features for neural net
     -- Uses a one-hot encoding of sticker colors.
@@ -241,6 +251,7 @@ function _Tperm(ru)
     ru:turnCCW(RIGHT)
     ru:turnCCW(FRONT)
 end
+
 
 function rubikTurnTests()
     local ru = Rubik:new()
@@ -300,7 +311,7 @@ function rubikTurnTests()
     print("Passed D L2 (T-perm) L2 D'")
 
     -- T-perm with setup to test back
-    -- (You would never do this with Pochmann but it moves very few stickers
+    -- You would never do this with Pochmann but it moves very few stickers
     ru = Rubik:new()
     ru:turnCW(BACK)
     _Tperm(ru)
@@ -321,4 +332,5 @@ function rubikTurnTests()
     print("All Rubik's cube tests passed")
 end
 
-rubikTurnTests()
+
+-- rubikTurnTests()
