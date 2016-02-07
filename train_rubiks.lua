@@ -2,7 +2,7 @@ require 'rnn'
 require 'rubiks'
 
 -- Number of moves to use when scrambling
-EPISODE_LENGTH = 4
+EPISODE_LENGTH = 2
 -- Number of possible turns of the cube
 N_MOVES = 12
 
@@ -92,6 +92,8 @@ data['test']:resize(n_test * EPISODE_LENGTH,
                      N_STICKERS * N_COLORS)
 model, loss = fullyConnected()
 
+best_acc = 0
+
 while epoch < n_epochs do
     print('Starting epoch', epoch)
     local err, correct = 0, 0
@@ -147,11 +149,16 @@ while epoch < n_epochs do
     -- save epoch data
     saved = {
         model = model,
-        train_err = err,
+        train_err = err / n_train,
         train_acc = correct / n_train * 100,
-        test_err = test_err,
+        test_err = test_err / n_test,
         test_acc = test_correct / n_test * 100
     }
+    if saved.test_acc > best_acc then
+        best_acc = saved.test_acc
+        filename = 'models/rubiks_best'
+        torch.save(filename, saved)
+    end
 
     filename = 'models/rubiks_epoch' .. epoch
     torch.save(filename, saved)
