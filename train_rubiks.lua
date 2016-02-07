@@ -7,6 +7,20 @@ EPISODE_LENGTH = 2
 N_MOVES = 12
 
 
+function _scrambleCube(length)
+    -- TODO better refactor this with the method below to avoid code duplication
+    local ru = Rubik:new()
+    for j = 1, length do
+        local mov = torch.random(1, N_MOVES)
+        if mov <= 6 then
+            ru:turnCW(mov)
+        else
+            ru:turnCCW(mov - 6)
+        end
+    end
+    return ru
+end
+
 function _generateEpisodes(n_episodes)
     local eps = torch.Tensor(n_episodes * EPISODE_LENGTH, N_STICKERS, N_COLORS):zero()
     local eps_labels = torch.Tensor(n_episodes * EPISODE_LENGTH):zero()

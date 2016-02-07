@@ -199,6 +199,10 @@ function Rubik:isSolved()
             for k = 1,3 do
                 if self.grid[i][j][k] ~= i then
                     return false
+                end
+            end
+        end
+    end
     return true
 end
 
