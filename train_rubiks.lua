@@ -1,8 +1,19 @@
 require 'rnn'
 require 'rubiks'
 
+
+-- (TODO) move more options into command line parameters
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text("Training script for Rubik's Cube neural net solve")
+cmd:option('--epsLen', 2, 'episode length')
+cmd:text()
+
+opt = cmd:parse(arg or {})
+
 -- Number of moves to use when scrambling
-EPISODE_LENGTH = 2
+EPISODE_LENGTH = opt.epsLen
+print('Using episode length', EPISODE_LENGTH)
 -- Number of possible turns of the cube
 N_MOVES = 12
 
@@ -113,6 +124,19 @@ function plainRecurrent()
 end
 
 
+-- (TODO) make everything refer to here
+hyperparams = {
+    seed = 987,
+    n_epochs = 40,
+    batchSize = 8,
+    learningRate = 0.1,
+    n_train = 50000,
+    n_valid = 1000,
+    n_test = 10000,
+    episode_length = EPISODE_LENGTH,
+}
+
+
 function trainFullModel()
     -- training
     torch.manualSeed(987)
@@ -201,7 +225,8 @@ function trainFullModel()
             train_err = err / n_train,
             train_acc = correct / n_train * 100,
             test_err = test_err / n_test,
-            test_acc = test_correct / n_test * 100
+            test_acc = test_correct / n_test * 100,
+            hyperparams = hyperparams
         }
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
@@ -338,12 +363,14 @@ function trainPlainRecurModel()
         print(string.format("Test loss = %f, test accuracy = %f %%", test_err, test_correct))
 
         -- save epoch data
+        -- (TODO) save hyperparameters used
         saved = {
             model = model,
             train_err = err,
             train_acc = correct,
             test_err = test_err,
-            test_acc = test_correct
+            test_acc = test_correct,
+            hyperparams = hyperparams
         }
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
