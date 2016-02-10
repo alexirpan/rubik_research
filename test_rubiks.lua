@@ -50,16 +50,26 @@ print(string.format(
 n_trials = 10000
 
 solved_count = 0
+solved_hist = {}
 solved_length = 0
+
 for i = 1, n_trials do
     if i % 100 == 0 then
         print(n_trials - i, 'steps left')
     end
-    cube = _scrambleCube(EPISODE_LENGTH + 1)
+    cube = _scrambleCube(EPISODE_LENGTH+3)
     solved, moves = trySolving(model, cube)
     if solved then
+        local sol_len = table.getn(moves)
+
         solved_count = solved_count + 1
-        solved_length = solved_length + table.getn(moves)
+        solved_length = solved_length + sol_len
+        if solved_hist[sol_len] == nil then
+            solved_hist[sol_len] = 1
+        else
+            solved_hist[sol_len] = solved_hist[sol_len] + 1
+        end
+
     end
 end
 
@@ -70,4 +80,5 @@ else
         'Solved %.2f%% of cubes, average solve length %f',
         solved_count / n_trials * 100, solved_length / solved_count
     ))
+    print(solved_hist)
 end
