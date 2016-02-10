@@ -1,4 +1,4 @@
-requir/ 'rnn'
+require 'rnn'
 require 'rubiks'
 
 
