@@ -57,7 +57,7 @@ for i = 1, n_trials do
     if i % 100 == 0 then
         print(n_trials - i, 'steps left')
     end
-    cube = _scrambleCube(EPISODE_LENGTH+3)
+    cube = _scrambleCube(EPISODE_LENGTH+1)
     solved, moves = trySolving(model, cube)
     if solved then
         local sol_len = table.getn(moves)
