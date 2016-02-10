@@ -1,4 +1,4 @@
-require 'rnn'
+requir/ 'rnn'
 require 'rubiks'
 
 
@@ -7,13 +7,17 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text("Training script for Rubik's Cube neural net solve")
 cmd:option('--epsLen', 2, 'episode length')
+cmd:option('--saveDir', 'models', 'Save directory')
+cmd:option('--type', 'none', 'Model type')
 cmd:text()
 
 opt = cmd:parse(arg or {})
 
 -- Number of moves to use when scrambling
 EPISODE_LENGTH = opt.epsLen
+saveTo = opt.saveDir
 print('Using episode length', EPISODE_LENGTH)
+print('Saving to', saveTo)
 -- Number of possible turns of the cube
 N_MOVES = 12
 
@@ -134,6 +138,7 @@ hyperparams = {
     n_valid = 1000,
     n_test = 10000,
     episode_length = EPISODE_LENGTH,
+    saved_to = saveTo
 }
 
 
@@ -230,11 +235,11 @@ function trainFullModel()
         }
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
-            filename = 'models/rubiks_best'
+            filename = saveTo .. '/rubiks_best'
             torch.save(filename, saved)
         end
 
-        filename = 'models/rubiks_epoch' .. epoch
+        filename = saveTo .. '/rubiks_epoch' .. epoch
         torch.save(filename, saved)
 
         epoch = epoch + 1
@@ -374,13 +379,23 @@ function trainPlainRecurModel()
         }
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
-            filename = 'models/rubiks_best'
+            filename = saveTo .. '/rubiks_best'
             torch.save(filename, saved)
         end
 
-        filename = 'models/rubiks_epoch' .. epoch
+        filename = saveTo .. '/rubiks_epoch' .. epoch
         torch.save(filename, saved)
 
         epoch = epoch + 1
     end
 end
+
+
+if opt.type == 'full' then
+    print('Training a fully connected model')
+    trainFullModel()
+elseif opt,type == 'rnn' then
+    print('Training a plain recurrent model')
+    trainPlainRecurModel()
+end
+
