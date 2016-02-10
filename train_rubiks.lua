@@ -394,7 +394,7 @@ end
 if opt.type == 'full' then
     print('Training a fully connected model')
     trainFullModel()
-elseif opt,type == 'rnn' then
+elseif opt.type == 'rnn' then
     print('Training a plain recurrent model')
     trainPlainRecurModel()
 end
