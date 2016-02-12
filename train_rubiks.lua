@@ -13,13 +13,47 @@ cmd:text()
 
 opt = cmd:parse(arg or {})
 
--- Number of moves to use when scrambling
-EPISODE_LENGTH = opt.epsLen
-saveTo = opt.saveDir
-print('Using episode length', EPISODE_LENGTH)
-print('Saving to', saveTo)
 -- Number of possible turns of the cube
 N_MOVES = 12
+
+
+hyperparams = {
+    seed = 987,
+    n_epochs = 40,
+    batchSize = 8,
+    learningRate = 0.1,
+    n_train = 50000,
+    n_valid = 1000,
+    n_test = 10000,
+    hiddenSize = 100,
+    rho = 10,
+    episode_length = opt.epsLen,
+    saved_to = opt.saveDir,
+    model_type = opt.type
+}
+
+
+function _setupHyperparams()
+    -- The old version of this code used the hyperparams as global variables
+    -- It's ugly, but for now we expose all of these globally
+    torch.manualSeed(hyperparams.seed)
+    n_epochs = hyperparams.n_epochs
+    batchSize = hyperparams.batchSize
+    learningRate = hyperparams.learningRate
+    n_train = hyperparams.n_train
+    n_valid = hyperparams.n_valid
+    n_test = hyperparams.n_test
+    EPISODE_LENGTH = hyperparams.episode_length
+    saveTo = hyperparams.saved_to
+    hiddenSize = hyperparams.hiddenSize
+    rho = hyperparams.rho
+end
+
+_setupHyperparams()
+print('Loaded hyperparameters')
+print(hyperparams)
+print('Using episode length', EPISODE_LENGTH)
+print('Saving to', saveTo)
 
 
 function _scrambleCube(length)
@@ -87,9 +121,6 @@ function createDataset(n_train, n_valid, n_test)
 end
 
 
-hiddenSize = 100
-
-
 function fullyConnected()
     -- return a fully connected model with 1 hidden layer
     local fcnn = nn.Sequential()
@@ -102,9 +133,6 @@ function fullyConnected()
 
     return fcnn, loss
 end
-
-
-rho = 10
 
 
 function plainRecurrent()
@@ -133,32 +161,7 @@ function plainRecurrent()
 end
 
 
--- (TODO) make everything refer to here
-hyperparams = {
-    seed = 987,
-    n_epochs = 40,
-    batchSize = 8,
-    learningRate = 0.1,
-    n_train = 50000,
-    n_valid = 1000,
-    n_test = 10000,
-    episode_length = EPISODE_LENGTH,
-    saved_to = saveTo
-}
-
-
 function trainFullModel()
-    -- training
-    torch.manualSeed(987)
-    epoch = 1
-    n_epochs = 40
-    batchSize = 8
-    learningRate = 0.1
-    n_train = 50000
-    n_valid = 1000  -- VALIDATION SET NOT USED
-    n_test = 10000
-
-
     data = createDataset(n_train, n_valid, n_test)
     -- flatten for fully connected
     data['train']:resize(n_train * EPISODE_LENGTH,
@@ -176,7 +179,7 @@ function trainFullModel()
     n_test = n_test * EPISODE_LENGTH
 
     best_acc = 0
-
+    epoch = 1
     while epoch < n_epochs do
         print('Starting epoch', epoch)
         local err, correct = 0, 0
@@ -262,17 +265,6 @@ end
 -- and get the gradient in one :backward call. Doing it once explicitly to get
 -- a better intuition
 function trainPlainRecurModel()
-    -- training
-    torch.manualSeed(987)
-    epoch = 1
-    n_epochs = 40
-    batchSize = 8
-    learningRate = 0.1
-    n_train = 50000
-    n_valid = 1000
-    n_test = 10000
-
-
     data = createDataset(n_train, n_valid, n_test)
     -- flatten last two axes
     data['train']:resize(n_train * EPISODE_LENGTH,
@@ -291,7 +283,7 @@ function trainPlainRecurModel()
     model, loss = plainRecurrent()
 
     best_acc = 0
-
+    epoch = 1
     while epoch < n_epochs do
         print('Starting epoch', epoch)
         local err, correct = 0, 0
@@ -414,10 +406,10 @@ function trainPlainRecurModel()
 end
 
 
-if opt.type == 'full' then
+if hyperparams.model_type == 'full' then
     print('Training a fully connected model')
     trainFullModel()
-elseif opt.type == 'rnn' then
+elseif hyperparams.model_type == 'rnn' then
     print('Training a plain recurrent model')
     trainPlainRecurModel()
 end
