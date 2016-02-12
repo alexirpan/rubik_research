@@ -249,11 +249,11 @@ function trainFullModel()
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
             filename = saveTo .. '/rubiks_best'
-            torch.save(filename, saved)
+            torch.save(filename, saved, 'ascii')
         end
 
         filename = saveTo .. '/rubiks_epoch' .. epoch
-        torch.save(filename, saved)
+        torch.save(filename, saved, 'ascii')
 
         epoch = epoch + 1
     end
@@ -395,11 +395,11 @@ function trainPlainRecurModel()
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
             filename = saveTo .. '/rubiks_best'
-            torch.save(filename, saved)
+            torch.save(filename, saved, 'ascii')
         end
 
         filename = saveTo .. '/rubiks_epoch' .. epoch
-        torch.save(filename, saved)
+        torch.save(filename, saved, 'ascii')
 
         epoch = epoch + 1
     end
