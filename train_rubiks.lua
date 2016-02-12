@@ -122,10 +122,12 @@ function plainRecurrent()
     rnn:add(recur)
     rnn:add(nn.Linear(hiddenSize, N_MOVES))
     rnn:add(nn.LogSoftMax())
-    -- wrap with recursor (TODO needed?)
-    rnn = nn.Recursor(rnn, rho)
 
-    local loss = nn.ClassNLLCriterion()
+    -- wrap with sequencer
+    rnn = nn.Sequencer(rnn)
+
+    -- use sequential loss
+    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
     return rnn, loss
 end
@@ -322,15 +324,15 @@ function trainPlainRecurModel()
             model:zeroGradParameters()
             model:forget()  -- forget past time steps
 
-            local outputs = {}
+            local outputs = model:forward(inputs)
+            err = err + loss:forward(outputs, targets)
+
             -- reset seqIndices to check accuracy
             seqIndices = torch.range(
                 start, start + (batchSize - 1) * EPISODE_LENGTH, EPISODE_LENGTH
             ):type('torch.LongTensor')
 
             for step = 1, EPISODE_LENGTH do
-                outputs[step] = model:forward(inputs[step])
-                err = err + loss:forward(outputs[step], targets[step])
                 -- compute accuracy
                 -- shape of output at each step is (batchSize, N_MOVES)
                 _, predicted = outputs[step]:max(2)
@@ -340,11 +342,8 @@ function trainPlainRecurModel()
             end
 
             -- backward sequence (backprop through time)
-            local gradOutputs, gradInputs = {}, {}
-            for step = EPISODE_LENGTH, 1, -1 do
-                gradOutputs[step] = loss:backward(outputs[step], targets[step])
-                gradInputs[step] = model:backward(inputs[step], gradOutputs[step])
-            end
+            local gradOutputs = loss:backward(outputs, targets)
+            local gradInputs = model:backward(inputs, gradOutputs)
 
             -- and update
             model:updateParameters(learningRate)
@@ -363,14 +362,26 @@ function trainPlainRecurModel()
         local test_err, test_correct = 0, 0
 
         for i = 1, n_test do
+            local start = (i-1) * EPISODE_LENGTH + 1
+            input_ = test:narrow(1, start, EPISODE_LENGTH)
+            -- The sequencer interface expects a Lua table of
+            -- seqlen entries, each of which is a batchsize x featsize tensor
+            input = {}
+            for step = 1,EPISODE_LENGTH do
+                input[step] = input_[step]
+            end
+            output = model:forward(input)
+            target_ = test_labels:narrow(1, start, EPISODE_LENGTH)
+            -- Again, table instead of tensor
+            target = {}
+            for step = 1,EPISODE_LENGTH do
+                target[step] = target_[step]
+            end
+            test_err = test_err + loss:forward(output, target)
+
             for step = 1, EPISODE_LENGTH do
-                model:forget()
-                input = test[(i-1) * EPISODE_LENGTH + step]
-                target = test_labels[(i-1) * EPISODE_LENGTH + step]
-                output = model:forward(input)
-                test_err = test_err + loss:forward(output, target)
-                _, best = output:max(1)
-                if best[1] == target then
+                _, best = output[step]:max(1)
+                if best[1] == target[step] then
                     test_correct = test_correct + 1
                 end
             end
@@ -381,7 +392,6 @@ function trainPlainRecurModel()
         print(string.format("Test loss = %f, test accuracy = %f %%", test_err, test_correct))
 
         -- save epoch data
-        -- (TODO) save hyperparameters used
         saved = {
             model = model,
             train_err = err,
