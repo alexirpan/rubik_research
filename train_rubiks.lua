@@ -200,9 +200,11 @@ function trainFullModel()
             local outputs = {}
             local gradOutputs, gradInputs = {}, {}
 
+            model:zeroGradParameters()
+
+            -- run whole batch before updating
             for i = 1, batchSize do
                 -- forward sequence
-                model:zeroGradParameters()
                 outputs[i] = model:forward(inputs[i])
                 err = err + loss:forward(outputs[i], targets[i])
 
@@ -214,9 +216,10 @@ function trainFullModel()
 
                 -- backprop
                 gradOutputs[i] = loss:backward(outputs[i], targets[i])
-                model:backward(inputs[i], gradOutputs[i])
-                model:updateParameters(learningRate)
+                gradInputs[i] = model:backward(inputs[i], gradOutputs[i])
             end
+
+            model:updateParameters(learningRate)
         end
         print(string.format("Epoch %d: Average training loss = %f, training accuracy = %f %%", epoch, err / n_train, correct / n_train * 100))
 
