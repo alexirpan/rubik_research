@@ -44,7 +44,10 @@ function _generateEpisodes(n_episodes)
     for i = 1, n_episodes do
         local ru = Rubik:new()
         local moves = {}
-        for j = 1, EPISODE_LENGTH do
+        -- Store the generated episodes in backwards order.
+        -- When passing a sequence to the RNN, we want to end at the solved
+        -- state, not start from it.
+        for j = EPISODE_LENGTH, 1, -1 do
             local mov = torch.random(1, N_MOVES)
             -- the correct label is the inverse of the move, after applying
             -- move modify appropriately
@@ -176,7 +179,12 @@ function trainFullModel()
         print('Starting epoch', epoch)
         local err, correct = 0, 0
 
-        for ind = 1, n_train / batchSize do
+        -- go through batches in random order
+        local nBatches = n_train / batchSize
+        local perm = torch.randperm(nBatches)
+
+        for j = 1, nBatches do
+            ind = perm[j]
             local inputs, targets = {}, {}
             start = (ind - 1) * batchSize + 1
             for i = 1, batchSize do
@@ -286,9 +294,14 @@ function trainPlainRecurModel()
         print('Starting epoch', epoch)
         local err, correct = 0, 0
 
+        -- go through batches in random order
+        local nBatches = n_train / batchSize
+        local perm = torch.randperm(nBatches)
+
         -- n_train is the number of sequences
         -- we do (batchSize) sequences at once
-        for ind = 1, n_train / batchSize do
+        for j = 1, nBatches do
+            ind = perm[j]
             -- generate a batch of sequences
             -- as constructed, each EPISODE_LENGTH block is a new sequence
             -- So to get batchSize sequences at once, we need to start pulling from
