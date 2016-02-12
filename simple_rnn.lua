@@ -25,10 +25,12 @@ rnn:add(nn.Linear(opt.hiddenSize, opt.nIndex))
 rnn:add(nn.LogSoftMax())
 
 -- wrap the non-recurrent Sequential module into Recursor
-rnn = nn.Recursor(rnn, opt.rho)
+-- wrap rnn with a Sequencer (lets us pass sequences directly as input/output)
+rnn = nn.Sequencer(rnn)
 
 -- criterion for loss
-criterion = nn.ClassNLLCriterion()
+-- (needs to be modified)
+criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
 -- arbitrary dataset
 sequence_ = torch.LongTensor():range(1,10) -- 1 to 10
@@ -48,7 +50,6 @@ max_iters = math.pow(10, 3)
 while iter < max_iters do
     iter = iter + 1
     -- sequence of rho time steps
-    --
     local inputs, targets = {}, {}
     for step = 1, opt.rho do
         -- get input batch
@@ -68,21 +69,15 @@ while iter < max_iters do
     rnn:zeroGradParameters()
     rnn:forget() -- forget prev time steps
 
-    local outputs, err = {}, 0
-    for step = 1, opt.rho do
-        outputs[step] = rnn:forward(inputs[step])
-        err = err + criterion:forward(outputs[step], targets[step])
-    end
+    local outputs = rnn:forward(inputs)
+    local err = criterion:forward(outputs, targets)
 
     print(string.format("Iteration %d: Loss = %f", iter, err))
 
     -- backprop through time
-    local gradOutputs, gradInputs = {}, {}
-    for step = opt.rho,1,-1 do
-        gradOutputs[step] = criterion:backward(outputs[step], targets[step])
-        gradInputs[step] = rnn:backward(inputs[step], gradOutputs[step])
-    end
+    local gradOutputs = criterion:backward(outputs, targets)
+    local gradInputs = rnn:backward(inputs, gradOutputs)
 
-    -- and finally apply the updates
+    -- and apply update
     rnn:updateParameters(opt.learningRate)
 end
