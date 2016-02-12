@@ -123,13 +123,21 @@ end
 
 function fullyConnected()
     -- return a fully connected model with 1 hidden layer
+    -- This is wrapped in a Sequencer to allow using one
+    -- training method for all the different models. All the
+    -- sequencer does is automate a few things when running
+    -- on multiple sequences, and requiring 'rnn' makes every
+    -- model have these methods defined. So, this shouldn't
+    -- change the functionality in any way
     local fcnn = nn.Sequential()
     fcnn:add( nn.Linear(N_STICKERS * N_COLORS, hiddenSize) )
     fcnn:add( nn.Tanh() )
     fcnn:add( nn.Linear(hiddenSize, N_MOVES) )
     fcnn:add( nn.LogSoftMax() )
 
-    local loss = nn.ClassNLLCriterion()
+    fcnn = nn.Sequencer(fcnn)
+
+    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
     return fcnn, loss
 end
@@ -161,113 +169,7 @@ function plainRecurrent()
 end
 
 
-function trainFullModel()
-    data = createDataset(n_train, n_valid, n_test)
-    -- flatten for fully connected
-    data['train']:resize(n_train * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-    data['valid']:resize(n_valid * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-    data['test']:resize(n_test * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-    model, loss = fullyConnected()
-
-    -- for the fully connected model we don't have a notion of sequences
-    -- So there are actually n_train * EPISODE_LENGTH samples total
-    n_train = n_train * EPISODE_LENGTH
-    n_valid = n_valid * EPISODE_LENGTH
-    n_test = n_test * EPISODE_LENGTH
-
-    best_acc = 0
-    epoch = 1
-    while epoch < n_epochs do
-        print('Starting epoch', epoch)
-        local err, correct = 0, 0
-
-        -- go through batches in random order
-        local nBatches = n_train / batchSize
-        local perm = torch.randperm(nBatches)
-
-        for j = 1, nBatches do
-            ind = perm[j]
-            local inputs, targets = {}, {}
-            start = (ind - 1) * batchSize + 1
-            for i = 1, batchSize do
-                inputs[i] = data['train'][start + i-1]
-                targets[i] = data['train_labels'][start + i-1]
-            end
-
-            local outputs = {}
-            local gradOutputs, gradInputs = {}, {}
-
-            model:zeroGradParameters()
-
-            -- run whole batch before updating
-            for i = 1, batchSize do
-                -- forward sequence
-                outputs[i] = model:forward(inputs[i])
-                err = err + loss:forward(outputs[i], targets[i])
-
-                -- compute accuracy
-                _, best = outputs[i]:max(1)
-                if best[1] == targets[i] then
-                    correct = correct + 1
-                end
-
-                -- backprop
-                gradOutputs[i] = loss:backward(outputs[i], targets[i])
-                gradInputs[i] = model:backward(inputs[i], gradOutputs[i])
-            end
-
-            model:updateParameters(learningRate)
-        end
-        print(string.format("Epoch %d: Average training loss = %f, training accuracy = %f %%", epoch, err / n_train, correct / n_train * 100))
-
-        -- test error
-        local test_err, test_correct = 0, 0
-
-        for i = 1, n_test do
-            local inputs, targets = {}, {}
-            local outputs = {}
-            inputs[i] = data['test'][i]
-            targets[i] = data['test_labels'][i]
-            outputs[i] = model:forward(inputs[i])
-            test_err = test_err + loss:forward(outputs[i], targets[i])
-            _, best = outputs[i]:max(1)
-            if best[1] == targets[i] then
-                test_correct = test_correct + 1
-            end
-        end
-        print(string.format("Test loss = %f, test accuracy = %f %%", test_err / n_test, test_correct / n_test * 100))
-
-        -- save epoch data
-        saved = {
-            model = model,
-            train_err = err / n_train,
-            train_acc = correct / n_train * 100,
-            test_err = test_err / n_test,
-            test_acc = test_correct / n_test * 100,
-            hyperparams = hyperparams
-        }
-        if saved.test_acc > best_acc then
-            best_acc = saved.test_acc
-            filename = saveTo .. '/rubiks_best'
-            torch.save(filename, saved, 'ascii')
-        end
-
-        filename = saveTo .. '/rubiks_epoch' .. epoch
-        torch.save(filename, saved, 'ascii')
-
-        epoch = epoch + 1
-    end
-end
-
-
--- (TODO) MY GOD REFACTOR THIS DON'T JUST COPY PASTE
--- (TODO) Write this such that I can pass the entire sequence in one :forward call
--- and get the gradient in one :backward call. Doing it once explicitly to get
--- a better intuition
-function trainPlainRecurModel()
+function trainModel(model, loss)
     data = createDataset(n_train, n_valid, n_test)
     -- flatten last two axes
     data['train']:resize(n_train * EPISODE_LENGTH,
@@ -282,8 +184,6 @@ function trainPlainRecurModel()
     valid_labels = data['valid_labels']
     test = data['test']
     test_labels = data['test_labels']
-
-    model, loss = plainRecurrent()
 
     best_acc = 0
     epoch = 1
@@ -411,9 +311,13 @@ end
 
 if hyperparams.model_type == 'full' then
     print('Training a fully connected model')
-    trainFullModel()
+    model, loss = fullyConnected()
 elseif hyperparams.model_type == 'rnn' then
     print('Training a plain recurrent model')
-    trainPlainRecurModel()
+    model, loss = plainRecurrent()
+end
+
+if model ~= nil then
+    trainModel(model, loss)
 end
 
