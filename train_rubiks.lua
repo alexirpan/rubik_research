@@ -169,6 +169,27 @@ function plainRecurrent()
 end
 
 
+function LSTM()
+    -- a 1 layer LSTM
+    local lstm = nn:Sequential()
+    lstm:add(
+        nn.LSTM(
+            N_STICKERS * N_COLORS,
+            hiddenSize,
+            rho
+        )
+    )
+    lstm:add(nn.Linear(hiddenSize, N_MOVES))
+    lstm:add(nn.LogSoftMax())
+
+    -- wrap with sequencer
+    lstm = nn.Sequencer(lstm)
+    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
+
+    return lstm, loss
+end
+
+
 function trainModel(model, loss)
     data = createDataset(n_train, n_valid, n_test)
     -- flatten last two axes
@@ -315,7 +336,11 @@ if hyperparams.model_type == 'full' then
 elseif hyperparams.model_type == 'rnn' then
     print('Training a plain recurrent model')
     model, loss = plainRecurrent()
+elseif hyperparams.model_type == 'lstm' then
+    print('Training an LSTM')
+    model, loss = LSTM()
 end
+
 
 if model ~= nil then
     trainModel(model, loss)
