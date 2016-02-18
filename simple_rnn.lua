@@ -1,3 +1,10 @@
+CUDA = false
+
+if CUDA then
+    require 'cutorch'
+    require 'cunn'
+end
+
 require 'rnn'
 
 cmd = torch.CmdLine()
@@ -27,10 +34,12 @@ rnn:add(nn.LogSoftMax())
 -- wrap the non-recurrent Sequential module into Recursor
 -- wrap rnn with a Sequencer (lets us pass sequences directly as input/output)
 rnn = nn.Sequencer(rnn)
+if CUDA then rnn:cuda() end
 
 -- criterion for loss
 -- (needs to be modified)
 criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
+if CUDA then criterion:cuda() end
 
 -- arbitrary dataset
 sequence_ = torch.LongTensor():range(1,10) -- 1 to 10
@@ -54,6 +63,7 @@ while iter < max_iters do
     for step = 1, opt.rho do
         -- get input batch
         inputs[step] = sequence:index(1, offsets)
+        if CUDA then inputs[step] = inputs[step]:cuda() end
         -- increment indices
         -- (the % operator is very slow in Lua, so avoid it in tight loops)
         offsets:add(1)
@@ -63,6 +73,7 @@ while iter < max_iters do
             end
         end
         targets[step] = sequence:index(1, offsets)
+        if CUDA then targets[step] = targets[step]:cuda() end
     end
 
     -- forward sequence

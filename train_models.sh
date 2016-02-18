@@ -1,5 +1,5 @@
 #!/bin/bash
-declare -a arr=("full" "lstm")
+declare -a arr=("rnn")
 
 for epslen in `seq 2 9`
 do
