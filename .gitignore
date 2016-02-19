@@ -2,3 +2,5 @@
 2fullmodels_old
 4fullmodels_old
 models
+# Store only the best model for each type in the repo
+models_*/rubiks_epoch*

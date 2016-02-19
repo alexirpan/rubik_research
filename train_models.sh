@@ -1,5 +1,5 @@
 #!/bin/bash
-declare -a arr=("rnn")
+declare -a arr=("fulltwo")
 
 for epslen in `seq 2 9`
 do

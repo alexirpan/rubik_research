@@ -143,6 +143,25 @@ function fullyConnected()
 end
 
 
+function biggerFullyConnected()
+    -- A 2 layer hidden net with # of parameters similar to a
+    -- 100 hidden size LSTM
+    local fcnn = nn.Sequential()
+    fcnn:add( nn.Linear(N_STICKERS * N_COLORS, 200) )
+    fcnn:add( nn.Tanh() )
+    fcnn:add( nn.Linear(200, 150) )
+    fcnn:add( nn.Tanh() )
+    fcnn:add( nn.Linear(150, N_MOVES) )
+    fcnn:add( nn.LogSoftMax() )
+
+    fcnn = nn.Sequencer(fcnn)
+
+    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
+
+    return fcnn, loss
+end
+
+
 function plainRecurrent()
     -- return a plain recurrent net
     -- first create recurrent module
@@ -339,6 +358,9 @@ elseif hyperparams.model_type == 'rnn' then
 elseif hyperparams.model_type == 'lstm' then
     print('Training an LSTM')
     model, loss = LSTM()
+elseif hyperparams.model_type == 'fulltwo' then
+    print('Training a 2 hidden layer FC model')
+    model, loss = biggerFullyConnected()
 end
 
 
