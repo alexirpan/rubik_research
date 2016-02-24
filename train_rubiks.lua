@@ -9,6 +9,24 @@ cmd:text("Training script for Rubik's Cube neural net solve")
 cmd:option('--epsLen', 2, 'episode length')
 cmd:option('--saveDir', 'models', 'Save directory')
 cmd:option('--type', 'none', 'Model type')
+-- KLUDGE
+-- FIX THIS LATER I AM DEAD FUCKING SERIOUS
+-- Basically, here's what happened. I try to do
+-- require 'train_rubiks'
+-- in my testing script with command line options. Somehow, the command
+-- line options from here override the valid ones. But, if I do
+-- abc = loadfile 'train_rubiks'
+-- then none of the globals I want to import actually get dropped into
+-- my testing script. THIS IS AN AWFUL HACK BECAUSE NONE OF THESE OPTIONS
+-- DO ANYTHING FOR THIS FILE. Luckily they're all different...
+-- I AM SERIOUS, THE NEXT COMMIT BETTER BE A CODE REORGANIZATION THAT LETS
+-- ME NOT HAVE RANDOM ARGUMENTS HERE. THIS ISN'T SPAGHETTI, THIS IS
+-- A GODDAMN MOBIUS STRIP
+NOMODEL = '.'
+NOFILE = '.'
+cmd:option('--model', NOMODEL, 'File path to the model')
+cmd:option('--savefile', NOFILE, 'Where to save solve data')
+cmd:option('--ntest', 10000, 'Number of cubes to test on')
 cmd:text()
 
 opt = cmd:parse(arg or {})
@@ -48,12 +66,6 @@ function _setupHyperparams()
     hiddenSize = hyperparams.hiddenSize
     rho = hyperparams.rho
 end
-
-_setupHyperparams()
-print('Loaded hyperparameters')
-print(hyperparams)
-print('Using episode length', EPISODE_LENGTH)
-print('Saving to', saveTo)
 
 
 function _scrambleCube(length)
@@ -349,6 +361,8 @@ function trainModel(model, loss)
 end
 
 
+_setupHyperparams()
+
 if hyperparams.model_type == 'full' then
     print('Training a fully connected model')
     model, loss = fullyConnected()
@@ -361,7 +375,15 @@ elseif hyperparams.model_type == 'lstm' then
 elseif hyperparams.model_type == 'fulltwo' then
     print('Training a 2 hidden layer FC model')
     model, loss = biggerFullyConnected()
+else
+    -- Not training a model, exit now
+    return
 end
+
+print('Loaded hyperparameters')
+print(hyperparams)
+print('Using episode length', EPISODE_LENGTH)
+print('Saving to', saveTo)
 
 
 if model ~= nil then
