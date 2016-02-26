@@ -15,5 +15,5 @@ done
 
 declare -a name="models_20_lstm"
 mkdir $name
-th train_rubiks.lua --epsLen 20 --saveDir $name --type lstm
+th train_rubiks.lua --epsLen 20 --saveDir $name --type lstm --ntrain 100000
 

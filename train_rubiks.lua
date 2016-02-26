@@ -325,13 +325,14 @@ if from_cmd_line then
     cmd:option('--epsLen', 2, 'episode length')
     cmd:option('--saveDir', 'models', 'Save directory')
     cmd:option('--type', 'none', 'Model type')
+    cmd:option('--ntrain', 50000, 'Number training episodes')
     opt = cmd:parse(arg or {})
     hyperparams = {
         seed = 987,
         n_epochs = 40,
         batchSize = 8,
         learningRate = 0.1,
-        n_train = 50000,
+        n_train = opt.ntrain,
         n_valid = 1000,
         n_test = 10000,
         hiddenSize = 100,
