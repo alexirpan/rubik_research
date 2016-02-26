@@ -1,6 +1,7 @@
 #!/bin/bash
-declare -a arr=("fulltwo")
+declare -a arr=("lstm")
 
+: '
 for epslen in `seq 2 9`
 do
     for typ in "${arr[@]}"
@@ -10,3 +11,9 @@ do
         th train_rubiks.lua --epsLen $epslen --saveDir $name --type $typ
     done
 done
+'
+
+declare -a name="models_20_lstm"
+mkdir $name
+th train_rubiks.lua --epsLen 20 --saveDir $name --type lstm
+
