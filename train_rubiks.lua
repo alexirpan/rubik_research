@@ -1,59 +1,14 @@
 require 'rnn'
 require 'rubiks'
 
-
--- (TODO) move more options into command line parameters
-cmd = torch.CmdLine()
-cmd:text()
-cmd:text("Training script for Rubik's Cube neural net solve")
-cmd:option('--epsLen', 2, 'episode length')
-cmd:option('--saveDir', 'models', 'Save directory')
-cmd:option('--type', 'none', 'Model type')
--- KLUDGE
--- FIX THIS LATER I AM DEAD FUCKING SERIOUS
--- Basically, here's what happened. I try to do
--- require 'train_rubiks'
--- in my testing script with command line options. Somehow, the command
--- line options from here override the valid ones. But, if I do
--- abc = loadfile 'train_rubiks'
--- then none of the globals I want to import actually get dropped into
--- my testing script. THIS IS AN AWFUL HACK BECAUSE NONE OF THESE OPTIONS
--- DO ANYTHING FOR THIS FILE. Luckily they're all different...
--- I AM SERIOUS, THE NEXT COMMIT BETTER BE A CODE REORGANIZATION THAT LETS
--- ME NOT HAVE RANDOM ARGUMENTS HERE. THIS ISN'T SPAGHETTI, THIS IS
--- A GODDAMN MOBIUS STRIP
-NOMODEL = '.'
-NOFILE = '.'
-cmd:option('--model', NOMODEL, 'File path to the model')
-cmd:option('--savefile', NOFILE, 'Where to save solve data')
-cmd:option('--ntest', 10000, 'Number of cubes to test on')
-cmd:text()
-
-opt = cmd:parse(arg or {})
-
 -- Number of possible turns of the cube
 N_MOVES = 12
-
-
-hyperparams = {
-    seed = 987,
-    n_epochs = 40,
-    batchSize = 8,
-    learningRate = 0.1,
-    n_train = 50000,
-    n_valid = 1000,
-    n_test = 10000,
-    hiddenSize = 100,
-    rho = 10,
-    episode_length = opt.epsLen,
-    saved_to = opt.saveDir,
-    model_type = opt.type
-}
-
 
 function _setupHyperparams()
     -- The old version of this code used the hyperparams as global variables
     -- It's ugly, but for now we expose all of these globally
+    -- (Note hyperparams is not instantiated unless this is run from the command
+    -- line. If it is, then it is initialized based on command line arguments)
     torch.manualSeed(hyperparams.seed)
     n_epochs = hyperparams.n_epochs
     batchSize = hyperparams.batchSize
@@ -361,32 +316,56 @@ function trainModel(model, loss)
 end
 
 
-_setupHyperparams()
+local from_cmd_line = (debug.getinfo(3).name == nil)
 
-if hyperparams.model_type == 'full' then
-    print('Training a fully connected model')
-    model, loss = fullyConnected()
-elseif hyperparams.model_type == 'rnn' then
-    print('Training a plain recurrent model')
-    model, loss = plainRecurrent()
-elseif hyperparams.model_type == 'lstm' then
-    print('Training an LSTM')
-    model, loss = LSTM()
-elseif hyperparams.model_type == 'fulltwo' then
-    print('Training a 2 hidden layer FC model')
-    model, loss = biggerFullyConnected()
-else
-    -- Not training a model, exit now
-    return
+if from_cmd_line then
+    cmd = torch.CmdLine()
+    cmd:text()
+    cmd:text("Training script for Rubik's Cube neural net solve")
+    cmd:option('--epsLen', 2, 'episode length')
+    cmd:option('--saveDir', 'models', 'Save directory')
+    cmd:option('--type', 'none', 'Model type')
+    opt = cmd:parse(arg or {})
+    hyperparams = {
+        seed = 987,
+        n_epochs = 40,
+        batchSize = 8,
+        learningRate = 0.1,
+        n_train = 50000,
+        n_valid = 1000,
+        n_test = 10000,
+        hiddenSize = 100,
+        rho = 10,
+        episode_length = opt.epsLen,
+        saved_to = opt.saveDir,
+        model_type = opt.type
+    }
+    _setupHyperparams()
+
+    if hyperparams.model_type == 'full' then
+        print('Training a fully connected model')
+        model, loss = fullyConnected()
+    elseif hyperparams.model_type == 'rnn' then
+        print('Training a plain recurrent model')
+        model, loss = plainRecurrent()
+    elseif hyperparams.model_type == 'lstm' then
+        print('Training an LSTM')
+        model, loss = LSTM()
+    elseif hyperparams.model_type == 'fulltwo' then
+        print('Training a 2 hidden layer FC model')
+        model, loss = biggerFullyConnected()
+    else
+        print('Invalid model type, exiting')
+        return
+    end
+
+    print('Loaded hyperparameters')
+    print(hyperparams)
+    print('Using episode length', EPISODE_LENGTH)
+    print('Saving to', saveTo)
+
+
+    if model ~= nil then
+        trainModel(model, loss)
+    end
 end
-
-print('Loaded hyperparameters')
-print(hyperparams)
-print('Using episode length', EPISODE_LENGTH)
-print('Saving to', saveTo)
-
-
-if model ~= nil then
-    trainModel(model, loss)
-end
-

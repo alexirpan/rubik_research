@@ -16,52 +16,6 @@ function dumptable(t)
 end
 
 
-cmd = torch.CmdLine()
-cmd:text()
-cmd:text("Testing script for Rubik's Cube neural net solve")
-cmd:text("The default behavior is to load the model, look up")
-cmd:text("the episode length from the hyperparams, then test scrambles")
-cmd:text("of length 1 longer to test generalization ability.")
-cmd:text("TODO think of a fairer test")
-cmd:option('--model', NOMODEL, 'File path to the model')
-cmd:option('--savefile', NOFILE, 'Where to save solve data')
-cmd:option('--ntest', 10000, 'Number of cubes to test on')
-cmd:text()
-
-opt = cmd:parse(arg or {})
-
-if opt.model == NOMODEL then
-    print('No model path specified, exiting')
-    return
-end
-
-if opt.savefile ~= NOFILE then
-    savefile = io.open(opt.savefile, 'w')
-end
-
-data = torch.load(opt.model, 'ascii')
-model = data.model
-episode_length = data.hyperparams.episode_length
-params_string = dumptable(data.hyperparams)
-scramble_length = episode_length + 1
-n_trials = opt.ntest
-
-infostring = string.format(
-    'Testing model with these parameters:\n' ..
-    '%s\n' ..
-    'Episode length %d, test_acc %f %%. Using scrambles of length %d',
-    params_string,
-    episode_length,
-    data.test_acc,
-    scramble_length
-)
-
-print(infostring)
-if savefile ~= nil then
-    savefile:write(infostring .. '\n')
-end
-
-
 function trySolving(model, start_cube)
     -- applies moves to the cube until it hits the solved state, or
     -- until it fails too many times
@@ -101,45 +55,99 @@ function trySolving(model, start_cube)
 end
 
 
-solved_count = 0
-solved_hist = {}
-solved_length = 0
+function solveCubes(n_trials)
+    local solved_count = 0
+    local solved_hist = {}
+    local solved_length = 0
 
-for i = 1, n_trials do
-    if i % 100 == 0 then
-        print(n_trials - i, 'steps left')
-    end
-    cube = _scrambleCube(scramble_length)
-    solved, moves = trySolving(model, cube)
-    if solved then
-        local sol_len = table.getn(moves)
-
-        solved_count = solved_count + 1
-        solved_length = solved_length + sol_len
-        if solved_hist[sol_len] == nil then
-            solved_hist[sol_len] = 1
-        else
-            solved_hist[sol_len] = solved_hist[sol_len] + 1
+    for i = 1, n_trials do
+        if i % 100 == 0 then
+            print(n_trials - i, 'steps left')
         end
+        cube = _scrambleCube(scramble_length)
+        solved, moves = trySolving(model, cube)
+        if solved then
+            local sol_len = table.getn(moves)
 
+            solved_count = solved_count + 1
+            solved_length = solved_length + sol_len
+            if solved_hist[sol_len] == nil then
+                solved_hist[sol_len] = 1
+            else
+                solved_hist[sol_len] = solved_hist[sol_len] + 1
+            end
+
+        end
     end
+    return solved_count, solved_hist, solved_length
 end
 
-if solved_count == 0 then
-    infostring = 'Solved no cubes :('
-else
+
+local from_cmd_line = (debug.getinfo(3).name == nil)
+
+if from_cmd_line then
+    cmd = torch.CmdLine()
+    cmd:text()
+    cmd:text("Testing script for Rubik's Cube neural net solve")
+    cmd:text("The default behavior is to load the model, look up")
+    cmd:text("the episode length from the hyperparams, then test scrambles")
+    cmd:text("of length 1 longer to test generalization ability.")
+    cmd:text("TODO think of a fairer test")
+    cmd:option('--model', NOMODEL, 'File path to the model')
+    cmd:option('--savefile', NOFILE, 'Where to save solve data')
+    cmd:option('--ntest', 10000, 'Number of cubes to test on')
+    cmd:text()
+
+    opt = cmd:parse(arg or {})
+
+    if opt.model == NOMODEL then
+        print('No model path specified, exiting')
+        return
+    end
+
+    if opt.savefile ~= NOFILE then
+        savefile = io.open(opt.savefile, 'w')
+    end
+
+    data = torch.load(opt.model, 'ascii')
+    model = data.model
+    episode_length = data.hyperparams.episode_length
+    params_string = dumptable(data.hyperparams)
+    scramble_length = episode_length + 1
+    n_trials = opt.ntest
+
     infostring = string.format(
-        'Solved %.2f%% of cubes, average solve length %f\n' ..
-        'Distribution of solve lengths on success\n' ..
-        '%s',
-        solved_count / n_trials * 100,
-        solved_length / solved_count,
-        dumptable(solved_hist)
+        'Testing model with these parameters:\n' ..
+        '%s\n' ..
+        'Episode length %d, test_acc %f %%. Using scrambles of length %d',
+        params_string,
+        episode_length,
+        data.test_acc,
+        scramble_length
     )
-end
 
-print(infostring)
-if savefile ~= nil then
-    savefile:write(infostring .. '\n')
-    savefile:close()
+    print(infostring)
+    if savefile ~= nil then
+        savefile:write(infostring .. '\n')
+    end
+
+    solved_count, solved_hist, solved_length = solveCubes(n_trials)
+    if solved_count == 0 then
+        infostring = 'Solved no cubes :('
+    else
+        infostring = string.format(
+            'Solved %.2f%% of cubes, average solve length %f\n' ..
+            'Distribution of solve lengths on success\n' ..
+            '%s',
+            solved_count / n_trials * 100,
+            solved_length / solved_count,
+            dumptable(solved_hist)
+        )
+    end
+
+    print(infostring)
+    if savefile ~= nil then
+        savefile:write(infostring .. '\n')
+        savefile:close()
+    end
 end
