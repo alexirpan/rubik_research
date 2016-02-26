@@ -13,7 +13,7 @@ do
 done
 '
 
-declare -a name="models_20_lstm"
+declare -a name="models_26_lstm"
 mkdir $name
-th train_rubiks.lua --epsLen 20 --saveDir $name --type lstm --ntrain 100000
+th train_rubiks.lua --epsLen 26 --saveDir $name --type lstm
 
