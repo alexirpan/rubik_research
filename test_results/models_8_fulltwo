@@ -1,0 +1,26 @@
+Testing model with these parameters:
+hiddenSize 100
+seed 987
+learningRate 0.1
+n_test 10000
+batchSize 8
+n_valid 1000
+saved_to models_8_fulltwo
+n_epochs 40
+n_train 50000
+episode_length 8
+model_type fulltwo
+rho 10
+
+Episode length 8, test_acc 70.497500 %. Using scrambles of length 9
+Solved 32.24% of cubes, average solve length 5.858561
+Distribution of solve lengths on success
+1 29
+3 342
+5 1354
+7 1243
+9 232
+11 21
+13 2
+17 1
+
