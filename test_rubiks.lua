@@ -2,9 +2,6 @@ require 'rnn'
 require 'rubiks'
 require 'train_rubiks'
 
-NOMODEL = '.'
-NOFILE = '.'
-
 function dumptable(t)
     -- holy shit Lua doesn't have built in table serialization
     -- THAT'S SO ANNOYING
@@ -86,16 +83,19 @@ end
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
+    local NOMODEL = '.'
+    local NOFILE = '.'
+    local SCRAMBLE_DEFAULT = -1
     cmd = torch.CmdLine()
     cmd:text()
     cmd:text("Testing script for Rubik's Cube neural net solve")
     cmd:text("The default behavior is to load the model, look up")
     cmd:text("the episode length from the hyperparams, then test scrambles")
-    cmd:text("of length 1 longer to test generalization ability.")
-    cmd:text("TODO think of a fairer test")
+    cmd:text("of length 1 longer.")
     cmd:option('--model', NOMODEL, 'File path to the model')
     cmd:option('--savefile', NOFILE, 'Where to save solve data')
     cmd:option('--ntest', 10000, 'Number of cubes to test on')
+    cmd:option('--scramblelen', SCRAMBLE_DEFAULT, 'Length of scramble to use (default episode length + 1')
     cmd:text()
 
     opt = cmd:parse(arg or {})
@@ -113,7 +113,11 @@ if from_cmd_line then
     model = data.model
     episode_length = data.hyperparams.episode_length
     params_string = dumptable(data.hyperparams)
-    scramble_length = episode_length + 1
+    if opt.scramblelen == SCRAMBLE_DEFAULT then
+        scramble_length = episode_length + 1
+    else
+        scramble_length = opt.scramblelen
+    end
     n_trials = opt.ntest
 
     infostring = string.format(
