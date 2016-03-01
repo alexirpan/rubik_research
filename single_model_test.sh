@@ -1,7 +1,12 @@
 #!/bin/bash
 # Tests a single model on its ability to solve scrambles of many lengths
 
-declare -a modeldir="models_26_lstm"
+if [ ${1} == "" ]; then
+    echo "Expected a model directory as first argument"
+    exit 1
+fi
+
+declare -a modeldir=$1
 declare -a model="${modeldir}/rubiks_best"
 declare -a savedir="${modeldir}_tests"
 

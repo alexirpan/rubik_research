@@ -1,0 +1,26 @@
+Testing model with these parameters:
+hiddenSize 100
+seed 987
+learningRate 0.1
+n_test 10000
+batchSize 8
+n_valid 1000
+saved_to models_9_lstm
+n_epochs 40
+n_train 50000
+episode_length 9
+model_type lstm
+rho 10
+
+Episode length 9, test_acc 70.300000 %. Using scrambles of length 4
+Solved 99.74% of cubes, average solve length 3.446561
+Distribution of solve lengths on success
+0 154
+2 2495
+4 7303
+6 11
+8 4
+10 5
+12 1
+14 1
+
