@@ -18,6 +18,9 @@ scores = {}
 for i, name in enumerate(names):
     with open(name) as f:
         contents = f.read()
+        if 'no cubes' in contents:
+            scores[i+1] = 0
+            continue
         contents = contents.split('Solved ')[1]
         contents = contents.split('%')[0]
         scores[i+1] = float(contents)
