@@ -187,6 +187,16 @@ function Rubik:turnCCW(face)
 end
 
 
+function Rubik:turn(num)
+    -- Convention is 1-6 for CW and 7-12 for CCW
+    if num <= 6 then
+        self:turnCW(num)
+    else
+        self:turnCCW(num - 6)
+    end
+end
+
+
 function Rubik:turn2(face)
     self:turnCW(face)
     self:turnCW(face)

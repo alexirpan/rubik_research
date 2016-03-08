@@ -41,11 +41,7 @@ function trySolving(model, start_cube)
         local _, action = output:max(1)
         action = action[1]
 
-        if action <= 6 then
-            start_cube:turnCW(action)
-        else
-            start_cube:turnCCW(action - 6)
-        end
+        start_cube:turn(action)
         table.insert(moves_done, action)
         moves = moves + 1
     end
