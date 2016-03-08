@@ -17,10 +17,40 @@ function getReward(cube)
 end
 
 
+-- TODO package this into a class?
+function initEpisode(start_cube)
+    return {
+        rewards  = {},
+        states   = {start_cube:toFeatures():resize(N_STICKERS * N_COLORS)},
+        actions  = {},
+        finished = start_cube:isSolved()
+    }
+end
+
+
+function updateEpisode(episode, cube, move)
+    -- Given an episode, the current state, and the next move, this applies the
+    -- given move while adding the required data to episode. If the episode
+    -- is already complete, this is a no-op
+    --
+    -- Returns whether the episode has terminated
+    if episode.finished then
+        return true
+    end
+    table.insert(episode.actions, move)
+    cube:turn(move)
+    table.insert(episode.rewards, getReward(cube))
+    table.insert(episode.states, cube:toFeatures():resize(N_STICKERS * N_COLORS))
+    episode.finished = cube:isSolved()
+    return episode.finished
+end
+
+
 function generateEpisodes(model, batchSize)
     -- generate a minibatch of batchSize episodes
     local max_length = 50
     local cubes = {}
+    local episodes = {}
 
     for i = 1, batchSize do
         -- A cube is solvable in at most 26 quarter turns
@@ -34,6 +64,7 @@ function generateEpisodes(model, batchSize)
         local scramble_length = torch.random(25, 26)
         local cube = _scrambleCube(scramble_length)
         cubes[i] = cube
+        episodes[i] = initEpisode(cube)
     end
 
     -- Tell model to not forget automatically
@@ -44,6 +75,7 @@ function generateEpisodes(model, batchSize)
     local n_finished = 0
 
     while moves <= max_length and n_finished < batchSize do
+        n_finished = 0
         moves = moves + 1
         -- Create a batch from the cubes
         local batch = torch.Tensor(batchSize, N_STICKERS * N_COLORS)
@@ -52,14 +84,15 @@ function generateEpisodes(model, batchSize)
         end
         -- Wrap in table to pass to sequencer. Then index out the actual output
         local output = model:forward({batch})[1]
-        -- now apply moves
+        -- now apply move for everything in batch
         local _, actions = output:max(2)
-        print(output)
-        print(actions)
         for i = 1,batchSize do
-            cubes[i]:turn(actions[i])
+            if updateEpisode(episodes[i], cubes[i], actions[i][1]) then
+                n_finished = n_finished + 1
+            end
         end
     end
+    return episodes
 end
 
 
@@ -130,6 +163,6 @@ if from_cmd_line then
 
     print(infostring)
     for i = 1, hyperparams.nBatches do
-        generateEpisodes(model, hyperparams.batchSize)
+        print(generateEpisodes(model, hyperparams.batchSize))
     end
 end
