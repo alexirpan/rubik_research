@@ -20,10 +20,10 @@ end
 -- TODO package this into a class?
 function initEpisode(start_cube)
     return {
-        rewards  = {},
-        states   = {start_cube:toFeatures():resize(N_STICKERS * N_COLORS)},
-        actions  = {},
-        finished = start_cube:isSolved()
+        raw_rewards = {},
+        states      = {start_cube:toFeatures():resize(N_STICKERS * N_COLORS)},
+        actions     = {},
+        finished    = start_cube:isSolved()
     }
 end
 
@@ -39,7 +39,7 @@ function updateEpisode(episode, cube, move)
     end
     table.insert(episode.actions, move)
     cube:turn(move)
-    table.insert(episode.rewards, getReward(cube))
+    table.insert(episode.raw_rewards, getReward(cube))
     table.insert(episode.states, cube:toFeatures():resize(N_STICKERS * N_COLORS))
     episode.finished = cube:isSolved()
     return episode.finished
@@ -96,19 +96,23 @@ function generateEpisodes(model, batchSize)
 end
 
 
-function computeQvals(episode)
-    -- Compute the time discounted Q-values
-    -- episode is a table of cubes seen so far
-    local epslen = #episode
-    local values = torch.Tensor(epslen-1)
-    for i = 2,epslen do
-        values[i-1] = getReward(episode[i])
+function computeDiscountedRewards(episode, discount)
+    -- Compute the time discounted reward
+    --
+    -- TODO decide if these should be bashed into Tensors or not
+    local n_vals = #episode.actions
+    -- value for (prev_state, action)
+    -- state + action is index i (next state is index i+1)
+    local rewards = {}
+    for i = 1, n_vals do
+        rewards[i] = episode.raw_rewards[i]
     end
-    -- have rewards for each action, now propagate back
-    for i = epslen-2, 1, -1 do
-        values[i] = values[i] + discount * values[i+1]
+    -- propagate back
+    -- (this uses the biased reward for policy gradient)
+    for i = n_vals - 1, 1, -1 do
+        rewards[i] = rewards[i] + discount * rewards[i+1]
     end
-    return values
+    episode.rewards = rewards
 end
 
 
@@ -164,6 +168,9 @@ if from_cmd_line then
     print(infostring)
     for i = 1, hyperparams.nBatches do
         eps = generateEpisodes(model, hyperparams.batchSize)
+        for j = 1, hyperparams.batchSize do
+            computeDiscountedRewards(eps[j], hyperparams.discount)
+        end
         print(eps)
     end
 end
