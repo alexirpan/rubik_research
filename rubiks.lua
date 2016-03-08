@@ -206,7 +206,7 @@ end
 function Rubik:toFeatures()
     -- Turns cube into features for neural net
     -- Uses a one-hot encoding of sticker colors.
-    local feat = torch.Tensor(6 * 3 * 3, 6):zero()
+    local feat = torch.Tensor(N_STICKERS, N_COLORS):zero()
     local c = 1
     for i = 1,6 do
         for j = 1,3 do
@@ -218,6 +218,42 @@ function Rubik:toFeatures()
     end
     return feat
 end
+
+
+-- TODO test me
+function fromFeatures(feat)
+    -- Note that when done this way, the local tensor is a view of the same data.
+    -- DO NOT MODIFY IT HERE UNLESS YOU WANT HARD TO UNDERSTAND BEHAVIOR
+    local feat2 = torch.Tensor(feat):resize(N_STICKERS, N_COLORS)
+    local ru = Rubik:new()
+    local c = 1
+    for i = 1,6 do
+        for j = 1,3 do
+            for k = 1,3 do
+                for col = 1,6 do
+                    if feat2[c][col] == 1 then
+                        ru.grid[i][j][k] = col
+                        break
+                    end
+                end
+                c = c + 1
+            end
+        end
+    end
+    return ru
+end
+
+
+-- TODO implement this
+--[[
+function Rubik:__toString()
+        B
+        |
+     L--U--R--D
+        |
+        F
+end
+--]]
 
 
 function _assertCubeEqual(grid, expected)

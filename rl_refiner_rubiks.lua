@@ -61,7 +61,7 @@ function generateEpisodes(model, batchSize)
         --
         -- So, scrambles should be both odd and even length, to
         -- make sure the solutions are both odd and even length
-        local scramble_length = torch.random(25, 26)
+        local scramble_length = torch.random(2,3)
         local cube = _scrambleCube(scramble_length)
         cubes[i] = cube
         episodes[i] = initEpisode(cube)
@@ -163,6 +163,7 @@ if from_cmd_line then
 
     print(infostring)
     for i = 1, hyperparams.nBatches do
-        print(generateEpisodes(model, hyperparams.batchSize))
+        eps = generateEpisodes(model, hyperparams.batchSize)
+        print(eps)
     end
 end
