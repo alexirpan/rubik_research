@@ -84,6 +84,7 @@ function generateEpisodes(model, batchSize)
         end
         -- Wrap in table to pass to sequencer. Then index out the actual output
         local output = model:forward({batch})[1]
+        -- TODO make this sample from output distribution instead of taking max
         -- now apply move for everything in batch
         local _, actions = output:max(2)
         for i = 1,batchSize do
