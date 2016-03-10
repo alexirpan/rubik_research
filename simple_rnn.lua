@@ -11,12 +11,20 @@ cmd = torch.CmdLine()
 cmd:text()
 cmd:text('A simple RNN')
 cmd:option('--learningRate', 0.1, 'learning rate')
-cmd:option('--hiddenSize', 10, 'hidden size')
+cmd:option('--hiddenSize', 300, 'hidden size')
 cmd:option('--batchSize', 8, 'batch size')
 cmd:option('--rho', 5, 'sequence length')
 cmd:option('--nIndex', 100, 'size of input/output')
 
 opt = cmd:parse(arg or {})
+
+if CUDA then
+    print('Using GPU')
+else
+    print('Using CPU')
+end
+
+timer = torch.Timer()
 
 recur = nn.Recurrent(
     opt.hiddenSize,                             -- output size
@@ -47,6 +55,8 @@ sequence = torch.LongTensor(100,10) -- initialized
 sequence:copy(sequence_:view(1,10):expand(100,10)) -- copies 1 to 10 into the 100 rows
 sequence:resize(100*10) -- and flattens
 
+if CUDA then sequence = sequence:cuda() end
+
 offsets = {}
 for i = 1, opt.batchSize do
     table.insert(offsets, math.ceil(math.random() * opt.batchSize))
@@ -63,7 +73,6 @@ while iter < max_iters do
     for step = 1, opt.rho do
         -- get input batch
         inputs[step] = sequence:index(1, offsets)
-        if CUDA then inputs[step] = inputs[step]:cuda() end
         -- increment indices
         -- (the % operator is very slow in Lua, so avoid it in tight loops)
         offsets:add(1)
@@ -73,7 +82,6 @@ while iter < max_iters do
             end
         end
         targets[step] = sequence:index(1, offsets)
-        if CUDA then targets[step] = targets[step]:cuda() end
     end
 
     -- forward sequence
@@ -92,3 +100,5 @@ while iter < max_iters do
     -- and apply update
     rnn:updateParameters(opt.learningRate)
 end
+
+print('Time elapsed: ' .. timer:time().real .. ' seconds')
