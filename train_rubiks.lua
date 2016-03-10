@@ -343,8 +343,8 @@ if from_cmd_line then
     cmd = torch.CmdLine()
     cmd:text()
     cmd:text("Training script for Rubik's Cube neural net solve")
-    cmd:option('--epsLen', 2, 'episode length')
-    cmd:option('--saveDir', 'models', 'Save directory')
+    cmd:option('--epslen', 2, 'episode length')
+    cmd:option('--savedir', 'models', 'Save directory')
     cmd:option('--type', 'none', 'Model type')
     cmd:option('--ntrain', 50000, 'Number training episodes')
     cmd:option('--ntest', 10000, 'Number testing episodes')
@@ -370,8 +370,8 @@ if from_cmd_line then
         n_test = opt.ntest,
         hiddenSize = 100,
         rho = 10,
-        episode_length = opt.epsLen,
-        saved_to = opt.saveDir,
+        episode_length = opt.epslen,
+        saved_to = opt.savedir,
         model_type = opt.type,
         using_gpu = CUDA
     }

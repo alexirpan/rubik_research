@@ -8,7 +8,7 @@ do
     do
         declare -a name="models_${epslen}_${typ}"
         mkdir $name
-        th train_rubiks.lua --epsLen $epslen --saveDir $name --type $typ
+        th train_rubiks.lua --epslen $epslen --savedir $name --type $typ
     done
 done
 '
