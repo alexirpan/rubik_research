@@ -187,6 +187,8 @@ end
 
 
 function trainModel(model, loss)
+    local timer = torch.Timer()
+    print('Creating data')
     data = createDataset(n_train, n_valid, n_test)
     -- flatten last two axes
     data['train']:resize(n_train * EPISODE_LENGTH,
@@ -195,6 +197,12 @@ function trainModel(model, loss)
                          N_STICKERS * N_COLORS)
     data['test']:resize(n_test * EPISODE_LENGTH,
                          N_STICKERS * N_COLORS)
+
+    seconds = timer:time().real
+    minutes = math.floor(seconds / 60)
+    seconds = seconds - 60 * minutes
+    print(string.format('Spent %d minutes %f seconds creating data', minutes, seconds))
+
     train = data['train']
     train_labels = data['train_labels']
     valid = data['valid']
