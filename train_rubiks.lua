@@ -10,6 +10,9 @@ function _setupHyperparams()
     -- (Note hyperparams is not instantiated unless this is run from the command
     -- line. If it is, then it is initialized based on command line arguments)
     torch.manualSeed(hyperparams.seed)
+    if CUDA then
+        cutorch.manualSeedAll(hyperparams.seed)
+    end
     n_epochs = hyperparams.n_epochs
     batchSize = hyperparams.batchSize
     learningRate = hyperparams.learningRate
@@ -62,6 +65,13 @@ function _generateEpisodes(n_episodes)
             eps[(i-1)*EPISODE_LENGTH + j] = ru:toFeatures()
             eps_labels[(i-1)*EPISODE_LENGTH + j] = mov
         end
+    end
+
+    if CUDA then
+        -- TODO labels should still be a Long Tensor right? or is cuda
+        -- better?
+        eps = eps:cuda()
+        eps_labels = eps_labels:cuda()
     end
 
     return eps, eps_labels
@@ -194,7 +204,7 @@ function trainModel(model, loss)
 
     best_acc = 0
     epoch = 1
-    while epoch < n_epochs do
+    while epoch <= n_epochs do
         print('Starting epoch', epoch)
         local err, correct = 0, 0
 
@@ -211,9 +221,9 @@ function trainModel(model, loss)
             -- So to get batchSize sequences at once, we need to start pulling from
             -- (start, start + EPISODE, start + 2*EPISODE, ...)
             start = (ind - 1) * batchSize * EPISODE_LENGTH + 1
-            local seqIndices = torch.range(
+            local seqIndices = torch.LongTensor():range(
                 start, start + (batchSize - 1) * EPISODE_LENGTH, EPISODE_LENGTH
-            ):type('torch.LongTensor')
+            )
 
             local inputs, targets = {}, {}
             for step = 1, EPISODE_LENGTH do
@@ -230,9 +240,9 @@ function trainModel(model, loss)
             err = err + loss:forward(outputs, targets)
 
             -- reset seqIndices to check accuracy
-            seqIndices = torch.range(
+            seqIndices = torch.LongTensor():range(
                 start, start + (batchSize - 1) * EPISODE_LENGTH, EPISODE_LENGTH
-            ):type('torch.LongTensor')
+            )
 
             for step = 1, EPISODE_LENGTH do
                 -- compute accuracy
@@ -294,6 +304,12 @@ function trainModel(model, loss)
         print(string.format("Test loss = %f, test accuracy = %f %%", test_err, test_correct))
 
         -- save epoch data
+        if CUDA then
+            -- convert the model back to DoubleTensor before saving
+            -- Otherwise it's only loadable on machines with GPU
+            model = model:double()
+        end
+
         saved = {
             model = model,
             train_err = err,
@@ -311,6 +327,11 @@ function trainModel(model, loss)
         filename = saveTo .. '/rubiks_epoch' .. epoch
         torch.save(filename, saved, 'ascii')
 
+        -- convert back
+        if CUDA then
+            model = model:cuda()
+        end
+
         epoch = epoch + 1
     end
 end
@@ -326,20 +347,33 @@ if from_cmd_line then
     cmd:option('--saveDir', 'models', 'Save directory')
     cmd:option('--type', 'none', 'Model type')
     cmd:option('--ntrain', 50000, 'Number training episodes')
+    cmd:option('--ntest', 10000, 'Number testing episodes')
+    cmd:option('--epochs', 40, 'Number epochs')
+    cmd:option('--batchsize', 8, 'Batch size to use')
+    cmd:option('--learningrate', 0.1, 'Learning rate used')
+    cmd:option('--gpu', 0, 'Use GPU or not')
     opt = cmd:parse(arg or {})
+
+    CUDA = (opt.gpu ~= 0)
+    if CUDA then
+        require 'cutorch'
+        require 'cunn'
+    end
+
     hyperparams = {
         seed = 987,
-        n_epochs = 40,
-        batchSize = 8,
-        learningRate = 0.1,
+        n_epochs = opt.epochs,
+        batchSize = opt.batchsize,
+        learningRate = opt.learningrate,
         n_train = opt.ntrain,
         n_valid = 1000,
-        n_test = 10000,
+        n_test = opt.ntest,
         hiddenSize = 100,
         rho = 10,
         episode_length = opt.epsLen,
         saved_to = opt.saveDir,
-        model_type = opt.type
+        model_type = opt.type,
+        using_gpu = CUDA
     }
     _setupHyperparams()
 
@@ -360,13 +394,25 @@ if from_cmd_line then
         return
     end
 
+    if CUDA then
+        model = model:cuda()
+        loss = loss:cuda()
+    end
+    print('Finished building model')
+
     print('Loaded hyperparameters')
     print(hyperparams)
     print('Using episode length', EPISODE_LENGTH)
     print('Saving to', saveTo)
 
+    timer = torch.Timer()
 
     if model ~= nil then
         trainModel(model, loss)
     end
+
+    seconds = timer:time().real
+    minutes = math.floor(seconds / 60)
+    seconds = seconds - 60 * minutes
+    print(string.format('Took %d minutes %f seconds', minutes, seconds))
 end
