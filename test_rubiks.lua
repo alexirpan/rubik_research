@@ -7,7 +7,8 @@ function dumptable(t)
     -- THAT'S SO ANNOYING
     local st = ''
     for k, v in pairs(t) do
-        st = st .. k .. ' ' .. v .. '\n'
+        print(k, v)
+        st = st .. k .. ' ' .. tostring(v) .. '\n'
     end
     return st
 end
