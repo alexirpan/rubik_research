@@ -1,5 +1,4 @@
 -- Implements a Rubik's Cube in Lua
--- TODO move to a different language?
 
 Rubik = {}
 UP = 1
@@ -11,6 +10,7 @@ DOWN = 6
 
 N_STICKERS = 6 * 3 * 3
 N_COLORS = 6
+N_MOVES = 12
 
 
 function Rubik:new()
@@ -35,11 +35,11 @@ function Rubik:new()
 end
 
 
-function Rubik:solved()
+function Rubik:isSolved()
     for color = 1, 6 do
         for j = 1, 3 do
             for k = 1, 3 do
-                if self.grid[j][k] ~= color then
+                if self.grid[color][j][k] ~= color then
                     return false
                 end
             end
@@ -190,20 +190,6 @@ end
 function Rubik:turn2(face)
     self:turnCW(face)
     self:turnCW(face)
-end
-
-
-function Rubik:isSolved()
-    for i = 1,6 do
-        for j = 1,3 do
-            for k = 1,3 do
-                if self.grid[i][j][k] ~= i then
-                    return false
-                end
-            end
-        end
-    end
-    return true
 end
 
 

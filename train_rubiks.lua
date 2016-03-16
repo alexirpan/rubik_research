@@ -1,8 +1,6 @@
 require 'rnn'
 require 'rubiks'
 
--- Number of possible turns of the cube
-N_MOVES = 12
 
 function _setupHyperparams()
     -- The old version of this code used the hyperparams as global variables
