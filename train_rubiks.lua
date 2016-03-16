@@ -25,7 +25,7 @@ function _setupHyperparams()
 end
 
 
-function _generateEpisodes(n_episodes)
+function generateEpisodes(n_episodes)
     local eps = torch.Tensor(n_episodes * EPISODE_LENGTH, N_STICKERS, N_COLORS):zero()
     -- using a LongTensor makes later comparison easier. These are class indices so it's fine
     local eps_labels = torch.LongTensor(n_episodes * EPISODE_LENGTH):zero()
@@ -48,16 +48,17 @@ function _generateEpisodes(n_episodes)
 end
 
 
-function createDataset(n_train, n_valid, n_test)
+function _createData(n_train, n_valid, n_test, in_parallel)
     -- generates a triple of 3 datasets: training, validation, and test
     --
     -- n_train: the number of training episodes
     -- n_valid: the number of validation episodes
     -- n_test: the number of test episodes
-    local train, train_lab = _generateEpisodes(n_train)
-    local valid, valid_lab = _generateEpisodes(n_valid)
-    local test, test_lab = _generateEpisodes(n_test)
-    return {
+    local train, train_lab = generateEpisodes(n_train)
+    local valid, valid_lab = generateEpisodes(n_valid)
+    local test, test_lab = generateEpisodes(n_test)
+
+    local datasets = {
         train = train,
         train_labels = train_lab,
         valid = valid,
@@ -65,6 +66,35 @@ function createDataset(n_train, n_valid, n_test)
         test = test,
         test_labels = test_lab
     }
+
+    if not in_parallel then
+        return datasets
+    else
+        parallel.parent:send(datasets)
+        parallel.yield()
+    end
+end
+
+
+function createDataset(n_train, n_valid, n_test)
+    return _createData(n_train, n_valid, n_test, false)
+end
+
+
+function createDatasetInParallel(n_train, n_valid, n_test)
+    require 'parallel'
+    -- ALWAYS, ALWAYS wrap this in a pcall to make sure
+    -- children are cleaned up
+    -- (so far this is unused. May add it back in if needed
+    local code = function()
+        _createData(n_train, n_valid, n_test, true)
+    end
+    child = parallel.fork()
+    child:exec(code)
+
+    local datasets = child:receive()
+    child:join()
+    return datasets
 end
 
 
