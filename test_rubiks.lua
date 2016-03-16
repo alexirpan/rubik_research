@@ -1,6 +1,7 @@
 require 'rnn'
 require 'rubiks'
-require 'train_rubiks'
+require 'rubiks_utils'
+
 
 function dumptable(t)
     -- holy shit Lua doesn't have built in table serialization
@@ -62,7 +63,7 @@ function solveCubes(n_trials)
         if i % 100 == 0 then
             print(n_trials - i, 'steps left')
         end
-        cube = _scrambleCube(scramble_length)
+        cube = randomCube(scramble_length)
         solved, moves = trySolving(model, cube)
         if solved then
             local sol_len = table.getn(moves)
@@ -84,8 +85,8 @@ end
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
-    local NOMODEL = '.'
-    local NOFILE = '.'
+    local NOMODEL = 'NOMODEL'
+    local NOFILE = 'NOFILE'
     local SCRAMBLE_DEFAULT = -1
     cmd = torch.CmdLine()
     cmd:text()

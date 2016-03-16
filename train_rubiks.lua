@@ -1,5 +1,6 @@
 require 'rnn'
 require 'rubiks'
+require 'rubiks_utils'
 
 
 function _setupHyperparams()
@@ -24,45 +25,16 @@ function _setupHyperparams()
 end
 
 
-function _scrambleCube(length)
-    -- TODO better refactor this with the method below to avoid code duplication
-    local ru = Rubik:new()
-    for j = 1, length do
-        local mov = torch.random(1, N_MOVES)
-        if mov <= 6 then
-            ru:turnCW(mov)
-        else
-            ru:turnCCW(mov - 6)
-        end
-    end
-    return ru
-end
-
 function _generateEpisodes(n_episodes)
     local eps = torch.Tensor(n_episodes * EPISODE_LENGTH, N_STICKERS, N_COLORS):zero()
     -- using a LongTensor makes later comparison easier. These are class indices so it's fine
-    local eps_labels = torch.Tensor(n_episodes * EPISODE_LENGTH):zero():type('torch.LongTensor')
+    local eps_labels = torch.LongTensor(n_episodes * EPISODE_LENGTH):zero()
 
     for i = 1, n_episodes do
-        local ru = Rubik:new()
-        local moves = {}
-        -- Store the generated episodes in backwards order.
-        -- When passing a sequence to the RNN, we want to end at the solved
-        -- state, not start from it.
-        for j = EPISODE_LENGTH, 1, -1 do
-            local mov = torch.random(1, N_MOVES)
-            -- the correct label is the inverse of the move, after applying
-            -- move modify appropriately
-            if mov <= 6 then
-                ru:turnCW(mov)
-                mov = mov + 6
-            else
-                ru:turnCCW(mov - 6)
-                mov = mov - 6
-            end
-            eps[(i-1)*EPISODE_LENGTH + j] = ru:toFeatures()
-            eps_labels[(i-1)*EPISODE_LENGTH + j] = mov
-        end
+        local episode, moves = randomCubeEpisode(EPISODE_LENGTH)
+        local start = (i-1) * EPISODE_LENGTH
+        eps[{ {start+1, start+EPISODE_LENGTH} }] = episode
+        eps_labels[{ {start+1, start+EPISODE_LENGTH} }] = moves
     end
 
     if CUDA then
