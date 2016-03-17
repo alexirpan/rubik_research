@@ -3,6 +3,39 @@
 require 'rubiks'
 
 
+function dumptable(t)
+    -- holy shit Lua doesn't have built in table serialization
+    -- THAT'S SO ANNOYING
+    local st = ''
+    for k, v in pairs(t) do
+        print(k, v)
+        st = st .. k .. ' ' .. tostring(v) .. '\n'
+    end
+    return st
+end
+
+
+function sample(dist)
+    -- dist is the output from a neural net classifier
+    -- In Torch, this is usually the log likelihood, so we need to
+    -- exponentiate manually
+    -- Uses the O(n) sampling method where n is number of items.
+    -- Should be fine
+    local vals = dist:exp()
+    if math.abs(vals:sum() - 1) > 0.000001 then
+        print('Distribution does not sum to 1!!!!')
+        print(vals)
+    end
+    local rand = torch.uniform()
+    local samp = 1
+    while rand > vals[samp] do
+        rand = rand - vals[samp]
+        samp = samp + 1
+    end
+    return samp
+end
+
+
 function randomCubeEpisode(length)
     -- Generates a random scramble of a Rubik's Cube
     -- Returns two items:
@@ -20,11 +53,10 @@ function randomCubeEpisode(length)
         local mov = torch.random(1, N_MOVES)
         -- the correct label is the inverse of the move, after applying
         -- move modify appropriately
+        ru:turn(mov)
         if mov <= 6 then
-            ru:turnCW(mov)
             mov = mov + 6
         else
-            ru:turnCCW(mov - 6)
             mov = mov - 6
         end
         episode[j] = ru:toFeatures()

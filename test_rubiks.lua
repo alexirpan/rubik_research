@@ -3,40 +3,6 @@ require 'rubiks'
 require 'rubiks_utils'
 
 
-function dumptable(t)
-    -- holy shit Lua doesn't have built in table serialization
-    -- THAT'S SO ANNOYING
-    local st = ''
-    for k, v in pairs(t) do
-        print(k, v)
-        st = st .. k .. ' ' .. tostring(v) .. '\n'
-    end
-    return st
-end
-
-
-function sample(dist)
-    -- dist is the output from a neural net classifier
-    -- In Torch, this is usually the log likelihood, so we need to
-    -- exponentiate manually
-    -- Uses the O(n) sampling method where n is number of items.
-    -- Should be fine
-    local vals = dist:exp()
-    for i = 2, vals:size()[1] do
-        vals[i] = vals[i] + vals[i-1]
-    end
-    local rand = torch.uniform()
-    local samp = 1
-    while rand > vals[samp] do
-        rand = rand - vals[samp]
-        samp = samp + 1
-    end
-    return samp
-end
-
-
-
-
 function trySolving(model, start_cube)
     -- applies moves to the cube until it hits the solved state, or
     -- until it fails too many times

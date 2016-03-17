@@ -62,7 +62,7 @@ function generateEpisodes(model, batchSize)
         -- So, scrambles should be both odd and even length, to
         -- make sure the solutions are both odd and even length
         local scramble_length = torch.random(2,3)
-        local cube = _scrambleCube(scramble_length)
+        local cube = randomCube(scramble_length)
         cubes[i] = cube
         episodes[i] = initEpisode(cube)
     end
@@ -86,9 +86,9 @@ function generateEpisodes(model, batchSize)
         local output = model:forward({batch})[1]
         -- TODO make this sample from output distribution instead of taking max
         -- now apply move for everything in batch
-        local _, actions = output:max(2)
         for i = 1,batchSize do
-            if updateEpisode(episodes[i], cubes[i], actions[i][1]) then
+            local action = sample(output[i])
+            if updateEpisode(episodes[i], cubes[i], action) then
                 n_finished = n_finished + 1
             end
         end
