@@ -9,3 +9,5 @@ models_26_lstm/rubiks_best
 # Everything here is way too big
 models_more_data/?_lstm/*
 !models_more_data/?_lstm/rubiks_best.gz
+# Place I use when I need to dump to an arbitrary file location
+foo

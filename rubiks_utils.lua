@@ -21,12 +21,14 @@ function sample(dist)
     -- exponentiate manually
     -- Uses the O(n) sampling method where n is number of items.
     -- Should be fine
-    local vals = dist:exp()
-    if math.abs(vals:sum() - 1) > 0.000001 then
+    -- This copies the output to avoid modifing the given distribution
+    -- Adding this guarantee is probably worth the small perf loss
+    local vals = dist:clone():exp()
+    if math.abs(vals:sum() - 1) > 0.001 then
         print('Distribution does not sum to 1!!!!')
         print(vals)
     end
-    local rand = torch.uniform()
+    local rand = torch.uniform() * vals:sum()
     local samp = 1
     while rand > vals[samp] do
         rand = rand - vals[samp]
