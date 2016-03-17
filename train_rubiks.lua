@@ -38,8 +38,6 @@ function generateEpisodes(n_episodes)
     end
 
     if CUDA then
-        -- TODO labels should still be a Long Tensor right? or is cuda
-        -- better?
         eps = eps:cuda()
         eps_labels = eps_labels:cuda()
     end
@@ -206,27 +204,6 @@ end
 
 function trainModel(model, loss)
     local timer = torch.Timer()
-    print('Creating data')
-    data = createDataset(n_train, n_valid, n_test)
-    -- flatten last two axes
-    data['train']:resize(n_train * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-    data['valid']:resize(n_test * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-    data['test']:resize(n_test * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-
-    seconds = timer:time().real
-    minutes = math.floor(seconds / 60)
-    seconds = seconds - 60 * minutes
-    print(string.format('Spent %d minutes %f seconds creating data', minutes, seconds))
-
-    train = data['train']
-    train_labels = data['train_labels']
-    valid = data['valid']
-    valid_labels = data['valid_labels']
-    test = data['test']
-    test_labels = data['test_labels']
 
     best_acc = 0
     epoch = 1
@@ -237,6 +214,28 @@ function trainModel(model, loss)
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
+        print('Creating data')
+        data = createDataset(n_train, n_valid, n_test)
+        -- flatten last two axes
+        data['train']:resize(n_train * EPISODE_LENGTH,
+                             N_STICKERS * N_COLORS)
+        data['valid']:resize(n_test * EPISODE_LENGTH,
+                             N_STICKERS * N_COLORS)
+        data['test']:resize(n_test * EPISODE_LENGTH,
+                             N_STICKERS * N_COLORS)
+
+        seconds = timer:time().real
+        minutes = math.floor(seconds / 60)
+        seconds = seconds - 60 * minutes
+        print(string.format('Spent %d minutes %f seconds creating data', minutes, seconds))
+
+        train = data['train']
+        train_labels = data['train_labels']
+        valid = data['valid']
+        valid_labels = data['valid_labels']
+        test = data['test']
+        test_labels = data['test_labels']
+
         local err, correct = 0, 0
 
         -- go through batches in random order
@@ -403,7 +402,7 @@ if from_cmd_line then
         batchSize = opt.batchsize,
         learningRate = opt.learningrate,
         n_train = opt.ntrain,
-        n_valid = 1000,
+        n_valid = 0, -- the way this is set up, the test set is actually the validation set
         n_test = opt.ntest,
         hiddenSize = 100,
         rho = 10, -- I believe this is overridden by the rnn library, so ignore this
