@@ -318,12 +318,16 @@ function trainModel(model, loss)
             model = model:double()
         end
 
+        -- TODO
+        -- If models take up too much space, only save the model with highest
+        -- validation accuracy
         saved = {
             model = model,
             train_err = err,
             train_acc = correct,
             test_err = test_err,
             test_acc = test_correct,
+            epoch = epoch,
             hyperparams = hyperparams
         }
         if saved.test_acc > best_acc then
@@ -377,13 +381,16 @@ if from_cmd_line then
         n_valid = 1000,
         n_test = opt.ntest,
         hiddenSize = 100,
-        rho = 10,
+        rho = 10, -- I believe this is overridden by the rnn library, so ignore this
         episode_length = opt.epslen,
         saved_to = opt.savedir,
         model_type = opt.type,
         using_gpu = CUDA
     }
     _setupHyperparams()
+    -- Saving hyperparams
+    torch.save(opt.savedir .. '/hyperparams', hyperparams, 'ascii')
+
 
     if hyperparams.model_type == 'full' then
         print('Training a fully connected model')
