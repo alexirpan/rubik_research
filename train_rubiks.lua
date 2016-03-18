@@ -215,6 +215,8 @@ function trainModel(model, loss)
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
         print('Creating data')
+        local dataTimer = torch.Timer()
+
         data = createDataset(n_train, n_valid, n_test)
         -- flatten last two axes
         data['train']:resize(n_train * EPISODE_LENGTH,
@@ -224,7 +226,7 @@ function trainModel(model, loss)
         data['test']:resize(n_test * EPISODE_LENGTH,
                              N_STICKERS * N_COLORS)
 
-        seconds = timer:time().real
+        seconds = dataTimer:time().real
         minutes = math.floor(seconds / 60)
         seconds = seconds - 60 * minutes
         print(string.format('Spent %d minutes %f seconds creating data', minutes, seconds))
