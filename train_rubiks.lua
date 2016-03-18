@@ -186,6 +186,24 @@ function LSTM()
 end
 
 
+-- The intention with these two functions is to keep all the CSV
+-- writing information in the same place
+function csvHeader()
+    return 'epoch,train_err,train_acc,test_err,test_acc\n'
+end
+
+
+function csvLine(save_info)
+    return string.format('%d,%f,%f,%f,%f\n',
+        save_info.epoch,
+        save_info.train_err,
+        save_info.train_acc,
+        save_info.test_err,
+        save_info.test_acc
+    )
+end
+
+
 function trainModel(model, loss)
     local timer = torch.Timer()
     print('Creating data')
@@ -212,6 +230,11 @@ function trainModel(model, loss)
 
     best_acc = 0
     epoch = 1
+
+    -- this file stays open until end of training
+    trainCsv = torch.DiskFile(hyperparams.saved_to .. '/trainingdata.csv', 'w')
+    trainCsv:writeString(csvHeader())
+
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
         local err, correct = 0, 0
@@ -330,6 +353,8 @@ function trainModel(model, loss)
             epoch = epoch,
             hyperparams = hyperparams
         }
+        trainCsv:writeString(csvLine(saved))
+
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
             filename = saveTo .. '/rubiks_best'
