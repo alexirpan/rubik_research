@@ -117,6 +117,22 @@ function computeDiscountedRewards(episode, discount)
 end
 
 
+function applyGradient(episode_batch)
+    --TODO complete me
+    --This requires designing a custom criterion that applies an appropriate
+    --policy gradient
+    --Recall the REINFORCE algorithm (ignoring variance reduction tricks for now)
+    --
+    -- dR/ dtheta = E_{episodes}[d/dtheta (log p_{theta}(episode)) * reward(episode)]
+    -- we sample a batch of episodes and estimate the expectation with empirical distribution
+    -- So, we need d/dtheta (log p_{theta}(episode))
+    -- which is d/dtheta \sum_t log pi(a_t|s_t)
+    -- Meaning, what we really want...is the derivative of the log probability
+    -- Which we get as a Torch built-in! This leaves arranging everything correctly
+    return false
+end
+
+
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
