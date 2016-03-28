@@ -66,6 +66,7 @@ function solveCubes(n_trials)
 end
 
 
+-- TODO make this also accept GPU
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
