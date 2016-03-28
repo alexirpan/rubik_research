@@ -187,17 +187,18 @@ end
 -- The intention with these two functions is to keep all the CSV
 -- writing information in the same place
 function csvHeader()
-    return 'epoch,train_err,train_acc,test_err,test_acc\n'
+    return 'epoch,train_err,train_acc,test_err,test_acc,total_time\n'
 end
 
 
 function csvLine(save_info)
-    return string.format('%d,%f,%f,%f,%f\n',
+    return string.format('%d,%f,%f,%f,%f,%f\n',
         save_info.epoch,
         save_info.train_err,
         save_info.train_acc,
         save_info.test_err,
-        save_info.test_acc
+        save_info.test_acc,
+        save_info.total_time
     )
 end
 
@@ -342,6 +343,9 @@ function trainModel(model, loss)
             model = model:double()
         end
 
+        total_time_sec = timer:time().real
+        total_time_min = total_time_sec / 60
+
         -- TODO
         -- If models take up too much space, only save the model with highest
         -- validation accuracy
@@ -352,6 +356,7 @@ function trainModel(model, loss)
             test_err = test_err,
             test_acc = test_correct,
             epoch = epoch,
+            total_time = total_time_min,
             hyperparams = hyperparams
         }
         trainCsv:writeString(csvLine(saved))
