@@ -7,7 +7,9 @@ models_*/rubiks_epoch*
 # This model is too big and Git Large File Storage isn't working for some reason
 models_26_lstm/rubiks_best
 # Everything here is way too big
-models_more_data/?_lstm/*
-!models_more_data/?_lstm/rubiks_best.gz
+models_more_data/*_lstm/rubiks_*
+!models_more_data/*_lstm/rubiks_best.gz
+models_streaming/*_lstm/rubiks_*
+!models_streaming/*_lstm/rubiks_best.gz
 # Place I use when I need to dump to an arbitrary file location
 foo
