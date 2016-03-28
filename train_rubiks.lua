@@ -380,6 +380,7 @@ function trainModel(model, loss)
 end
 
 
+-- TODO Support initializing model from file
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
