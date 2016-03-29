@@ -112,9 +112,7 @@ function fullyConnected()
 
     fcnn = nn.Sequencer(fcnn)
 
-    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
-
-    return fcnn, loss
+    return fcnn
 end
 
 
@@ -131,9 +129,7 @@ function biggerFullyConnected()
 
     fcnn = nn.Sequencer(fcnn)
 
-    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
-
-    return fcnn, loss
+    return fcnn
 end
 
 
@@ -156,10 +152,7 @@ function plainRecurrent()
     -- wrap with sequencer
     rnn = nn.Sequencer(rnn)
 
-    -- use sequential loss
-    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
-
-    return rnn, loss
+    return rnn
 end
 
 
@@ -178,9 +171,20 @@ function LSTM()
 
     -- wrap with sequencer
     lstm = nn.Sequencer(lstm)
-    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
-    return lstm, loss
+    return lstm
+end
+
+
+function lossFn()
+    -- Every model type uses the same loss function
+    -- Decoupling the loss constructor from the model constructor
+    -- lets us create loss functions for previously saved models.
+    --
+    -- (It also lets us more easily try different loss functions in
+    -- the future.)
+    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
+    return loss
 end
 
 
@@ -384,6 +388,7 @@ end
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
+    local NOMODEL = 'NOMODEL'
     cmd = torch.CmdLine()
     cmd:text()
     cmd:text("Training script for Rubik's Cube neural net solve")
@@ -396,6 +401,7 @@ if from_cmd_line then
     cmd:option('--batchsize', 8, 'Batch size to use')
     cmd:option('--learningrate', 0.1, 'Learning rate used')
     cmd:option('--gpu', 0, 'Use GPU or not')
+    cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note you should still pass in the model type! Although this doesn't use that information, it helps keep the hyperparams file consistent.")
     opt = cmd:parse(arg or {})
 
     CUDA = (opt.gpu ~= 0)
@@ -403,6 +409,7 @@ if from_cmd_line then
         require 'cutorch'
         require 'cunn'
     end
+
 
     hyperparams = {
         seed = 987,
@@ -419,27 +426,37 @@ if from_cmd_line then
         model_type = opt.type,
         using_gpu = CUDA
     }
+    if opt.model ~= NOMODEL then
+        hyperparams.initial_model = opt.model
+    end
     _setupHyperparams()
     -- Saving hyperparams
     torch.save(opt.savedir .. '/hyperparams', hyperparams, 'ascii')
 
 
-    if hyperparams.model_type == 'full' then
+    if opt.model ~= NOMODEL then
+        print('Loading a previously trained model')
+        print('Loading from ' .. opt.model .. ' ...')
+        data = torch.load(opt.model, 'ascii')
+        model = data.model
+    elseif hyperparams.model_type == 'full' then
         print('Training a fully connected model')
-        model, loss = fullyConnected()
+        model = fullyConnected()
     elseif hyperparams.model_type == 'rnn' then
         print('Training a plain recurrent model')
-        model, loss = plainRecurrent()
+        model = plainRecurrent()
     elseif hyperparams.model_type == 'lstm' then
         print('Training an LSTM')
-        model, loss = LSTM()
+        model = LSTM()
     elseif hyperparams.model_type == 'fulltwo' then
         print('Training a 2 hidden layer FC model')
-        model, loss = biggerFullyConnected()
+        model = biggerFullyConnected()
     else
         print('Invalid model type, exiting')
         return
     end
+
+    loss = lossFn()
 
     if CUDA then
         model = model:cuda()
