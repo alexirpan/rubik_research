@@ -38,8 +38,6 @@ function generateEpisodes(n_episodes)
     end
 
     if CUDA then
-        -- TODO labels should still be a Long Tensor right? or is cuda
-        -- better?
         eps = eps:cuda()
         eps_labels = eps_labels:cuda()
     end
@@ -114,9 +112,7 @@ function fullyConnected()
 
     fcnn = nn.Sequencer(fcnn)
 
-    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
-
-    return fcnn, loss
+    return fcnn
 end
 
 
@@ -133,9 +129,7 @@ function biggerFullyConnected()
 
     fcnn = nn.Sequencer(fcnn)
 
-    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
-
-    return fcnn, loss
+    return fcnn
 end
 
 
@@ -158,10 +152,7 @@ function plainRecurrent()
     -- wrap with sequencer
     rnn = nn.Sequencer(rnn)
 
-    -- use sequential loss
-    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
-
-    return rnn, loss
+    return rnn
 end
 
 
@@ -180,53 +171,44 @@ function LSTM()
 
     -- wrap with sequencer
     lstm = nn.Sequencer(lstm)
-    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
-    return lstm, loss
+    return lstm
+end
+
+
+function lossFn()
+    -- Every model type uses the same loss function
+    -- Decoupling the loss constructor from the model constructor
+    -- lets us create loss functions for previously saved models.
+    --
+    -- (It also lets us more easily try different loss functions in
+    -- the future.)
+    local loss = nn.SequencerCriterion(nn.ClassNLLCriterion())
+    return loss
 end
 
 
 -- The intention with these two functions is to keep all the CSV
 -- writing information in the same place
 function csvHeader()
-    return 'epoch,train_err,train_acc,test_err,test_acc\n'
+    return 'epoch,train_err,train_acc,test_err,test_acc,total_time\n'
 end
 
 
 function csvLine(save_info)
-    return string.format('%d,%f,%f,%f,%f\n',
+    return string.format('%d,%f,%f,%f,%f,%f\n',
         save_info.epoch,
         save_info.train_err,
         save_info.train_acc,
         save_info.test_err,
-        save_info.test_acc
+        save_info.test_acc,
+        save_info.total_time
     )
 end
 
 
 function trainModel(model, loss)
     local timer = torch.Timer()
-    print('Creating data')
-    data = createDataset(n_train, n_valid, n_test)
-    -- flatten last two axes
-    data['train']:resize(n_train * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-    data['valid']:resize(n_test * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-    data['test']:resize(n_test * EPISODE_LENGTH,
-                         N_STICKERS * N_COLORS)
-
-    seconds = timer:time().real
-    minutes = math.floor(seconds / 60)
-    seconds = seconds - 60 * minutes
-    print(string.format('Spent %d minutes %f seconds creating data', minutes, seconds))
-
-    train = data['train']
-    train_labels = data['train_labels']
-    valid = data['valid']
-    valid_labels = data['valid_labels']
-    test = data['test']
-    test_labels = data['test_labels']
 
     best_acc = 0
     epoch = 1
@@ -237,6 +219,30 @@ function trainModel(model, loss)
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
+        print('Creating data')
+        local dataTimer = torch.Timer()
+
+        data = createDataset(n_train, n_valid, n_test)
+        -- flatten last two axes
+        data['train']:resize(n_train * EPISODE_LENGTH,
+                             N_STICKERS * N_COLORS)
+        data['valid']:resize(n_test * EPISODE_LENGTH,
+                             N_STICKERS * N_COLORS)
+        data['test']:resize(n_test * EPISODE_LENGTH,
+                             N_STICKERS * N_COLORS)
+
+        seconds = dataTimer:time().real
+        minutes = math.floor(seconds / 60)
+        seconds = seconds - 60 * minutes
+        print(string.format('Spent %d minutes %f seconds creating data', minutes, seconds))
+
+        train = data['train']
+        train_labels = data['train_labels']
+        valid = data['valid']
+        valid_labels = data['valid_labels']
+        test = data['test']
+        test_labels = data['test_labels']
+
         local err, correct = 0, 0
 
         -- go through batches in random order
@@ -341,6 +347,9 @@ function trainModel(model, loss)
             model = model:double()
         end
 
+        total_time_sec = timer:time().real
+        total_time_min = total_time_sec / 60
+
         -- TODO
         -- If models take up too much space, only save the model with highest
         -- validation accuracy
@@ -351,6 +360,7 @@ function trainModel(model, loss)
             test_err = test_err,
             test_acc = test_correct,
             epoch = epoch,
+            total_time = total_time_min,
             hyperparams = hyperparams
         }
         trainCsv:writeString(csvLine(saved))
@@ -374,9 +384,11 @@ function trainModel(model, loss)
 end
 
 
+-- TODO Support initializing model from file
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
+    local NOMODEL = 'NOMODEL'
     cmd = torch.CmdLine()
     cmd:text()
     cmd:text("Training script for Rubik's Cube neural net solve")
@@ -389,6 +401,7 @@ if from_cmd_line then
     cmd:option('--batchsize', 8, 'Batch size to use')
     cmd:option('--learningrate', 0.1, 'Learning rate used')
     cmd:option('--gpu', 0, 'Use GPU or not')
+    cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note you should still pass in the model type! Although this doesn't use that information, it helps keep the hyperparams file consistent.")
     opt = cmd:parse(arg or {})
 
     CUDA = (opt.gpu ~= 0)
@@ -397,13 +410,14 @@ if from_cmd_line then
         require 'cunn'
     end
 
+
     hyperparams = {
         seed = 987,
         n_epochs = opt.epochs,
         batchSize = opt.batchsize,
         learningRate = opt.learningrate,
         n_train = opt.ntrain,
-        n_valid = 1000,
+        n_valid = 0, -- the way this is set up, the test set is actually the validation set
         n_test = opt.ntest,
         hiddenSize = 100,
         rho = 10, -- I believe this is overridden by the rnn library, so ignore this
@@ -412,27 +426,37 @@ if from_cmd_line then
         model_type = opt.type,
         using_gpu = CUDA
     }
+    if opt.model ~= NOMODEL then
+        hyperparams.initial_model = opt.model
+    end
     _setupHyperparams()
     -- Saving hyperparams
     torch.save(opt.savedir .. '/hyperparams', hyperparams, 'ascii')
 
 
-    if hyperparams.model_type == 'full' then
+    if opt.model ~= NOMODEL then
+        print('Loading a previously trained model')
+        print('Loading from ' .. opt.model .. ' ...')
+        data = torch.load(opt.model, 'ascii')
+        model = data.model
+    elseif hyperparams.model_type == 'full' then
         print('Training a fully connected model')
-        model, loss = fullyConnected()
+        model = fullyConnected()
     elseif hyperparams.model_type == 'rnn' then
         print('Training a plain recurrent model')
-        model, loss = plainRecurrent()
+        model = plainRecurrent()
     elseif hyperparams.model_type == 'lstm' then
         print('Training an LSTM')
-        model, loss = LSTM()
+        model = LSTM()
     elseif hyperparams.model_type == 'fulltwo' then
         print('Training a 2 hidden layer FC model')
-        model, loss = biggerFullyConnected()
+        model = biggerFullyConnected()
     else
         print('Invalid model type, exiting')
         return
     end
+
+    loss = lossFn()
 
     if CUDA then
         model = model:cuda()
