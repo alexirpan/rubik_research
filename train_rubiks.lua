@@ -13,6 +13,7 @@ function _setupHyperparams()
         cutorch.manualSeedAll(hyperparams.seed)
     end
     n_epochs = hyperparams.n_epochs
+    prev_epochs = hyperparams.prev_epochs
     batchSize = hyperparams.batchSize
     learningRate = hyperparams.learningRate
     n_train = hyperparams.n_train
@@ -211,7 +212,10 @@ function trainModel(model, loss)
     local timer = torch.Timer()
 
     best_acc = 0
-    epoch = 1
+    -- It's structured this way to make sure that if the script is run for
+    -- 20 epochs, and the same model is trained for another 20 epochs, all
+    -- saved information for the second run starts at 21 (and ends at 40)
+    epoch = prev_epochs + 1
 
     -- this file stays open until end of training
     trainCsv = torch.DiskFile(hyperparams.saved_to .. '/trainingdata.csv', 'w')
@@ -401,7 +405,7 @@ if from_cmd_line then
     cmd:option('--batchsize', 8, 'Batch size to use')
     cmd:option('--learningrate', 0.1, 'Learning rate used')
     cmd:option('--gpu', 0, 'Use GPU or not')
-    cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note you should still pass in the model type! Although this doesn't use that information, it helps keep the hyperparams file consistent.")
+    cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note this will clobber the model type (but will not clobber anything else)")
     opt = cmd:parse(arg or {})
 
     CUDA = (opt.gpu ~= 0)
@@ -410,9 +414,9 @@ if from_cmd_line then
         require 'cunn'
     end
 
-
     hyperparams = {
         seed = 987,
+        prev_epochs = 0,
         n_epochs = opt.epochs,
         batchSize = opt.batchsize,
         learningRate = opt.learningrate,
@@ -427,17 +431,17 @@ if from_cmd_line then
         using_gpu = CUDA
     }
     if opt.model ~= NOMODEL then
-        hyperparams.initial_model = opt.model
-    end
-    _setupHyperparams()
-    -- Saving hyperparams
-    torch.save(opt.savedir .. '/hyperparams', hyperparams, 'ascii')
-
-
-    if opt.model ~= NOMODEL then
         print('Loading a previously trained model')
         print('Loading from ' .. opt.model .. ' ...')
         data = torch.load(opt.model, 'ascii')
+        hyperparams.initial_model = opt.model
+        hyperparams.model_type = data.hyperparams.model_type
+        hyperparams.prev_epochs = data.epoch
+        hyperparams.n_epochs = hyperparams.n_epochs + data.epoch
+    end
+    _setupHyperparams()
+
+    if opt.model ~= NOMODEL then
         model = data.model
     elseif hyperparams.model_type == 'full' then
         print('Training a fully connected model')
@@ -455,13 +459,15 @@ if from_cmd_line then
         print('Invalid model type, exiting')
         return
     end
-
     loss = lossFn()
 
     if CUDA then
         model = model:cuda()
         loss = loss:cuda()
     end
+    -- Saving hyperparams
+    torch.save(opt.savedir .. '/hyperparams', hyperparams, 'ascii')
+
     print('Finished building model')
 
     print('Loaded hyperparameters')
