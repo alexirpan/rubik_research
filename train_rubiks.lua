@@ -208,8 +208,31 @@ function csvLine(save_info)
 end
 
 
+function lastTimeFromCsv(file)
+    --Reads total time from the final csv row
+    --When function finishes, file pointer will be at end of file
+    file:seekEnd()
+    local endpos = file:position()
+    file:seek(1)
+
+    --Read lines until we hit the end
+    local line = nil
+    while file:position() < endpos do
+        line = file:readString('*l')
+    end
+
+    --split line on commas
+    local tokens = {}
+    for tok in string.gmatch(line, '[^,]+') do
+        table.insert(tokens, tok)
+    end
+    return tonumber(tokens[6])
+end
+
+
 function trainModel(model, loss)
     local timer = torch.Timer()
+    local timeOffset = 0
 
     best_acc = 0
     -- It's structured this way to make sure that if the script is run for
@@ -218,8 +241,19 @@ function trainModel(model, loss)
     epoch = prev_epochs + 1
 
     -- this file stays open until end of training
-    trainCsv = torch.DiskFile(hyperparams.saved_to .. '/trainingdata.csv', 'w')
-    trainCsv:writeString(csvHeader())
+    -- Always open this file in rw mode! Sometimes we run the training script on
+    -- the same directory (ex: when we want to refine an already trained model)
+    -- and in that case the training csv will already exist. Opening in w mode
+    -- auto deletes all data
+    trainCsv = torch.DiskFile(hyperparams.saved_to .. '/trainingdata.csv', 'rw')
+    trainCsv:seekEnd()
+    if trainCsv:position() == 1 then
+        -- writes header only if file is initially empty
+        trainCsv:writeString(csvHeader())
+    else
+        -- find time offset
+        timeOffset = lastTimeFromCsv(trainCsv)
+    end
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
@@ -364,7 +398,7 @@ function trainModel(model, loss)
             test_err = test_err,
             test_acc = test_correct,
             epoch = epoch,
-            total_time = total_time_min,
+            total_time = total_time_min + timeOffset,
             hyperparams = hyperparams
         }
         trainCsv:writeString(csvLine(saved))
@@ -438,6 +472,9 @@ if from_cmd_line then
         hyperparams.model_type = data.hyperparams.model_type
         hyperparams.prev_epochs = data.epoch
         hyperparams.n_epochs = hyperparams.n_epochs + data.epoch
+        --If we keep the seed the same, we'll see the same data as before,
+        --so modify it
+        hyperparams.seed = hyperparams.seed + 1
     end
     _setupHyperparams()
 
