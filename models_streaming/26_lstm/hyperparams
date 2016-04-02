@@ -5,12 +5,12 @@
 11
 prev_epochs
 1
-40
+80
 2
 4
 seed
 1
-987
+988
 2
 14
 episode_length
@@ -51,7 +51,7 @@ models_streaming/26_lstm
 8
 n_epochs
 1
-80
+120
 2
 10
 hiddenSize
@@ -62,7 +62,7 @@ hiddenSize
 initial_model
 2
 39
-models_streaming/26_lstm/rubiks_epoch40
+models_streaming/26_lstm/rubiks_epoch80
 2
 3
 rho

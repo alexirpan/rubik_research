@@ -126,9 +126,10 @@ function applyGradient(episode_batch)
     -- dR/ dtheta = E_{episodes}[d/dtheta (log p_{theta}(episode)) * reward(episode)]
     -- we sample a batch of episodes and estimate the expectation with empirical distribution
     -- So, we need d/dtheta (log p_{theta}(episode))
-    -- which is d/dtheta \sum_t log pi(a_t|s_t)
+    -- which is d/dtheta \sum_t log pi(a_t|previous actions and states)
     -- Meaning, what we really want...is the derivative of the log probability
-    -- Which we get as a Torch built-in! This leaves arranging everything correctly
+    -- that the RNN outputs at each time step (need to include hidden state too)
+    -- Should be a Torch built-in! This leaves arranging everything correctly
     return false
 end
 

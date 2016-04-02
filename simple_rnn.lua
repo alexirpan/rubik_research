@@ -65,7 +65,7 @@ offsets = torch.LongTensor(offsets)
 
 -- training
 iter = 1
-max_iters = math.pow(10, 3)
+max_iters = 100
 while iter < max_iters do
     iter = iter + 1
     -- sequence of rho time steps
@@ -92,6 +92,10 @@ while iter < max_iters do
     local err = criterion:forward(outputs, targets)
 
     print(string.format("Iteration %d: Loss = %f", iter, err))
+    print('inputs', inputs)
+    print('targets', targets)
+    print('rnn output (first in batch)', rnn.output[1])
+    print('loss output', criterion.output)
 
     -- backprop through time
     local gradOutputs = criterion:backward(outputs, targets)
