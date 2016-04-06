@@ -1,0 +1,39 @@
+Testing model with these parameters:
+prev_epochs 80
+seed 988
+n_train 50000
+saved_to models_streaming/26_lstm
+learningRate 0.1
+n_test 10000
+batchSize 8
+n_valid 0
+using_gpu true
+n_epochs 120
+rho 10
+initial_model models_streaming/26_lstm/rubiks_epoch80
+hiddenSize 100
+model_type lstm
+episode_length 26
+
+Episode length 26, test_acc 39.782692 %. Using scrambles of length 12
+Solved 14.39% of cubes, average solve length 8.669910
+Distribution of solve lengths on success
+2 20
+4 130
+6 343
+8 427
+10 251
+12 132
+14 55
+16 36
+18 14
+20 9
+22 12
+24 3
+26 2
+28 1
+32 1
+38 1
+40 1
+44 1
+
