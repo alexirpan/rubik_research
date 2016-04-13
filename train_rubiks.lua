@@ -357,6 +357,7 @@ function trainModel(model, loss)
             for step = 1,EPISODE_LENGTH do
                 input[step] = input_[step]
             end
+            model:forget() -- forget past test runs
             output = model:forward(input)
             target_ = test_labels:narrow(1, start, EPISODE_LENGTH)
             -- Again, table instead of tensor
@@ -422,7 +423,6 @@ function trainModel(model, loss)
 end
 
 
--- TODO Support initializing model from file
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
