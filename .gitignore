@@ -13,3 +13,5 @@ models_streaming/*_lstm/rubiks_*
 !models_streaming/*_lstm/rubiks_best.gz
 # Place I use when I need to dump to an arbitrary file location
 foo
+# Filename for when I need to write a short sanity checking script
+foo.lua
