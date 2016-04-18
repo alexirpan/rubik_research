@@ -20,6 +20,12 @@ function generateEpisodes(n_episodes, episode_length)
     end
     eps:resize(n_episodes * episode_length,
                N_STICKERS * N_COLORS)
+
+    if CUDA then
+        eps = eps:cuda()
+        eps_labels = eps_labels:cuda()
+    end
+
     return eps, eps_labels
 end
 
@@ -51,6 +57,9 @@ function testModels(models, n_test, episode_length)
         target = test_labels:narrow(1, start, episode_length)
         for step = 1, episode_length do
             local total = torch.Tensor(N_MOVES):zero()
+            if CUDA then
+                total = total:cuda()
+            end
             for i = 1, #models do
                 total = total + outputs[i][step]:exp()
             end
@@ -77,9 +86,19 @@ if from_cmd_line then
     cmd:option('--nmodels', 10, 'Number of models to average')
     cmd:option('--startepoch', 1, 'Which epoch to start at. Takes all models from startepoch to startepoch + nmodels - 1')
     cmd:option('--ntest', 10000, 'Number episodes to use for accuracy')
+    cmd:option('--gpu', 0, 'Use GPU or not')
     opt = cmd:parse(arg or {})
 
+    CUDA = (opt.gpu ~= 0)
+    if CUDA then
+        require 'cutorch'
+        require 'cunn'
+    end
+
     torch.manualSeed(12345)
+    if CUDA then
+        cutorch.manualSeedAll(12345)
+    end
     hyperparams = torch.load(opt.savedir .. '/hyperparams', 'ascii')
     episode_length = hyperparams.episode_length
     basename = opt.savedir .. '/rubiks_epoch'
@@ -87,10 +106,11 @@ if from_cmd_line then
     start = opt.startepoch
     models = {}
     for ep = start, start + n_models - 1 do
-        table.insert(
-            models,
-            torch.load(basename .. ep, 'ascii').model
-        )
+        model = torch.load(basename .. ep, 'ascii').model
+        if CUDA then
+            model = model:cuda()
+        end
+        table.insert(models, model)
     end
     testModels(models, opt.ntest, episode_length)
 end
