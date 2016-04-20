@@ -14,14 +14,56 @@
 -- boosting), the notion of gradient is a bit loose since some
 -- model parameters are meant to be frozen in time...may be
 -- implemented later
+--
+-- For efficiency reasons, we can't have the booster use
+-- a sum of classifiers over all iterations, so we instead
+-- use a simple pruning that keeps only the classifiers
+-- with largest weights so far
 -------------------------------------------------------
 local Averager, parent = torch.class("nn.Averager", "nn.Module")
 
 
-function Averager:__init(models)
+function Averager:__init(models, weights, max_models)
+    -- Weights is assumed to be a Tensor, not a table!
     parent.__init(self)
+    assert(torch.isTensor(weights))
+    assert(#models == weights:size(1))
+    assert(#models <= max_models)
     self.models = models
     self.n_models = #models
+    self.max_models = max_models
+    self.weights = weights
+end
+
+
+function Averager:_sortModels()
+    -- Sorts models by weights, with smallest weight last
+    local sorted, indices = self.weights:sort(1, true)
+    self.weights = sorted
+    local temp = {}
+    for i = 1, self.n_models do
+        table.insert(temp, self.models[indices[i]])
+    end
+    self.models = temp
+end
+
+
+function Averager:addModel(model, weight)
+    local new_weights = torch.Tensor(self.n_models + 1)
+    new_weights[{ {1, self.n_models} }] = self.weights
+    new_weights[self.n_models + 1] = weight
+    self.weights = new_weights
+
+    table.insert(self.models, model)
+    self.n_models = self.n_models + 1
+
+    self:_sortModels()
+
+    if self.n_models > self.max_models then
+        table.remove(self.models)
+        self.weights = self.weights[{ {1, self.max_models} }]
+        self.n_models = self.n_models - 1
+    end
 end
 
 
@@ -36,9 +78,9 @@ function Averager:updateOutput(input)
     local total = torch.Tensor(n_classes):zero()
     for i=1, self.n_models do
         -- output is log prob, copy to keep model output intact
-        total = total + self.model_outputs[i]:clone():exp()
+        total = total + self.model_outputs[i]:clone():exp() * self.weights[i]
     end
-    total = total / self.n_models
+    total = total / self.weights:sum()
     return total:log()
 end
 
