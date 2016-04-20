@@ -20,6 +20,7 @@
 -- use a simple pruning that keeps only the classifiers
 -- with largest weights so far
 -------------------------------------------------------
+require 'rnn'
 local Averager, parent = torch.class("nn.Averager", "nn.Module")
 
 
@@ -82,6 +83,21 @@ function Averager:updateOutput(input)
     end
     total = total / self.weights:sum()
     return total:log()
+end
+
+
+-- Helper methods to make it easy to reset state over all modesl
+function Averager:zeroGradParameters()
+    for i = 1, self.n_models do
+        self.models[i]:zeroGradParameters()
+    end
+end
+
+
+function Averager:forget()
+    for i = 1, self.n_models do
+        self.models[i]:forget()
+    end
 end
 
 

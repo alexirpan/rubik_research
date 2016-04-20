@@ -2,6 +2,9 @@ require 'rnn'
 require 'rubiks'
 require 'rubiks_utils'
 
+require 'averager'
+require 'filter'
+
 
 function _setupHyperparams()
     -- The old version of this code used the hyperparams as global variables
@@ -19,7 +22,7 @@ function _setupHyperparams()
     n_train = hyperparams.n_train
     n_valid = hyperparams.n_valid
     n_test = hyperparams.n_test
-    EPISODE_LENGTH = hyperparams.episode_length
+    episode_length = hyperparams.episode_length
     saveTo = hyperparams.saved_to
     hiddenSize = hyperparams.hiddenSize
     rho = hyperparams.rho
@@ -27,15 +30,15 @@ end
 
 
 function generateEpisodes(n_episodes)
-    local eps = torch.Tensor(n_episodes * EPISODE_LENGTH, N_STICKERS, N_COLORS):zero()
+    local eps = torch.Tensor(n_episodes * episode_length, N_STICKERS, N_COLORS):zero()
     -- using a LongTensor makes later comparison easier. These are class indices so it's fine
-    local eps_labels = torch.LongTensor(n_episodes * EPISODE_LENGTH):zero()
+    local eps_labels = torch.LongTensor(n_episodes * episode_length):zero()
 
     for i = 1, n_episodes do
-        local episode, moves = randomCubeEpisode(EPISODE_LENGTH)
-        local start = (i-1) * EPISODE_LENGTH
-        eps[{ {start+1, start+EPISODE_LENGTH} }] = episode
-        eps_labels[{ {start+1, start+EPISODE_LENGTH} }] = moves
+        local episode, moves = randomCubeEpisode(episode_length)
+        local start = (i-1) * episode_length
+        eps[{ {start+1, start+episode_length} }] = episode
+        eps_labels[{ {start+1, start+episode_length} }] = moves
     end
 
     if CUDA then
@@ -262,11 +265,11 @@ function trainModel(model, loss)
 
         data = createDataset(n_train, n_valid, n_test)
         -- flatten last two axes
-        data['train']:resize(n_train * EPISODE_LENGTH,
+        data['train']:resize(n_train * episode_length,
                              N_STICKERS * N_COLORS)
-        data['valid']:resize(n_test * EPISODE_LENGTH,
+        data['valid']:resize(n_test * episode_length,
                              N_STICKERS * N_COLORS)
-        data['test']:resize(n_test * EPISODE_LENGTH,
+        data['test']:resize(n_test * episode_length,
                              N_STICKERS * N_COLORS)
 
         seconds = dataTimer:time().real
@@ -292,16 +295,16 @@ function trainModel(model, loss)
         for j = 1, nBatches do
             ind = perm[j]
             -- generate a batch of sequences
-            -- as constructed, each EPISODE_LENGTH block is a new sequence
+            -- as constructed, each episode_length block is a new sequence
             -- So to get batchSize sequences at once, we need to start pulling from
             -- (start, start + EPISODE, start + 2*EPISODE, ...)
-            start = (ind - 1) * batchSize * EPISODE_LENGTH + 1
+            start = (ind - 1) * batchSize * episode_length + 1
             local seqIndices = torch.LongTensor():range(
-                start, start + (batchSize - 1) * EPISODE_LENGTH, EPISODE_LENGTH
+                start, start + (batchSize - 1) * episode_length, episode_length
             )
 
             local inputs, targets = {}, {}
-            for step = 1, EPISODE_LENGTH do
+            for step = 1, episode_length do
                 inputs[step] = train:index(1, seqIndices)
                 targets[step] = train_labels:index(1, seqIndices)
                 seqIndices:add(1)
@@ -316,10 +319,10 @@ function trainModel(model, loss)
 
             -- reset seqIndices to check accuracy
             seqIndices = torch.LongTensor():range(
-                start, start + (batchSize - 1) * EPISODE_LENGTH, EPISODE_LENGTH
+                start, start + (batchSize - 1) * episode_length, episode_length
             )
 
-            for step = 1, EPISODE_LENGTH do
+            for step = 1, episode_length do
                 -- compute accuracy
                 -- shape of output at each step is (batchSize, N_MOVES)
                 _, predicted = outputs[step]:max(2)
@@ -335,9 +338,9 @@ function trainModel(model, loss)
             -- and update
             model:updateParameters(learningRate)
         end
-        -- for averages, we need to account for there being n_episodes * EPISODE_LENGTH samples total
-        err = err / (n_train * EPISODE_LENGTH)
-        correct = correct / (n_train * EPISODE_LENGTH) * 100
+        -- for averages, we need to account for there being n_episodes * episode_length samples total
+        err = err / (n_train * episode_length)
+        correct = correct / (n_train * episode_length) * 100
         print(string.format(
             "Epoch %d: Average training loss = %f, training accuracy = %f %%",
             epoch,
@@ -349,25 +352,25 @@ function trainModel(model, loss)
         local test_err, test_correct = 0, 0
 
         for i = 1, n_test do
-            local start = (i-1) * EPISODE_LENGTH + 1
-            input_ = test:narrow(1, start, EPISODE_LENGTH)
+            local start = (i-1) * episode_length + 1
+            input_ = test:narrow(1, start, episode_length)
             -- The sequencer interface expects a Lua table of
             -- seqlen entries, each of which is a batchsize x featsize tensor
             input = {}
-            for step = 1,EPISODE_LENGTH do
+            for step = 1,episode_length do
                 input[step] = input_[step]
             end
             model:forget() -- forget past test runs
             output = model:forward(input)
-            target_ = test_labels:narrow(1, start, EPISODE_LENGTH)
+            target_ = test_labels:narrow(1, start, episode_length)
             -- Again, table instead of tensor
             target = {}
-            for step = 1,EPISODE_LENGTH do
+            for step = 1,episode_length do
                 target[step] = target_[step]
             end
             test_err = test_err + loss:forward(output, target)
 
-            for step = 1, EPISODE_LENGTH do
+            for step = 1, episode_length do
                 _, best = output[step]:max(1)
                 if best[1] == target[step] then
                     test_correct = test_correct + 1
@@ -375,8 +378,8 @@ function trainModel(model, loss)
             end
         end
         -- again account for episode length
-        test_err = test_err / (n_test * EPISODE_LENGTH)
-        test_correct = test_correct / (n_test * EPISODE_LENGTH) * 100
+        test_err = test_err / (n_test * episode_length)
+        test_correct = test_correct / (n_test * episode_length) * 100
         print(string.format("Test loss = %f, test accuracy = %f %%", test_err, test_correct))
 
         -- save epoch data
@@ -509,7 +512,7 @@ if from_cmd_line then
 
     print('Loaded hyperparameters')
     print(hyperparams)
-    print('Using episode length', EPISODE_LENGTH)
+    print('Using episode length', episode_length)
     print('Saving to', saveTo)
 
     timer = torch.Timer()
