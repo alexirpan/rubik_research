@@ -41,12 +41,13 @@ function psuedoloss(prob_outputs, labels)
     -- The pseudoloss is defined such that:
     -- - If Pr[correct label] = 0, the pseudoloss is 1
     -- - If Pr[correct label] = 1, the pseudoloss is 0
-    -- - Otherwise, the pseudoloss lies in between 0 and 1
-    -- - And additionally, the pseudoloss is larger if the model
-    --   puts larger weight on an incorrect label (for a fixed
-    --   Pr[correct label], pseudoloss is maximized when all other
-    --   weight is put on 1 label, and minimized when the weight is
-    --   distributed evenly over the K-1 remaining labels)
+    -- - The uniform distribution has pseudoloss 0.5
+    -- - Pr[correct label] > 1/k ==> pseudoloss < 0.5
+    -- - The pseudoloss is larger if the model puts a large weight on an
+    --   incorrect label
+    --
+    -- This lets us define edge by 1/2 - pseudoloss, and also makes the
+    -- optimization prefer solutions that output one clear winning class
 
     -- We're rejecting on a per-episode basis instead of a per-sample
     -- basis, so average the pseudoloss over the samples
@@ -64,9 +65,11 @@ function psuedoloss(prob_outputs, labels)
     return loss / #labels
 end
 
-function accept(model, episode, labels, edge, goal_err, confidence)
-    -- returns a boolean for whether the sample should be allowed in the next
-    -- epoch
+
+function accept_prob(model, episode, labels, edge, goal_err, confidence)
+    -- Returns the accept probability of the sample
+    -- By returning the probability directly, we can let other algorithms
+    -- decide whether to accept/reject or to weight the sample
     model:zeroGradParameters()
     model:forget()
 
@@ -84,7 +87,7 @@ function accept(model, episode, labels, edge, goal_err, confidence)
     avg_pprime = avg_pprime / #episode
 
     local prob = avg_pprime / (N_MOVES - 1)
-    return torch.uniform() < prob
+    return prob
 end
 
 
@@ -109,7 +112,8 @@ function nextDataset(model, target_error, confidence, n_episodes, episode_length
     while i <= n_episodes do
         local episode, moves = randomCubeEpisode(episode_length)
         total_samples = total_samples + 1
-        if accept(model, loss, episode, moves) then
+        local prob = accept_prob(model, episode, moves, FILL, FILL, FILL)
+        if torch.uniform() < prob then
             local start = (i-1) * episode_length
             eps[{ {start+1, start+episode_length} }] = episode
             eps_labels[{ {start+1, start+episode_length} }] = moves
@@ -132,4 +136,16 @@ function nextDataset(model, target_error, confidence, n_episodes, episode_length
         end
     end
     return eps, eps_labels, total_samples
+end
+
+
+function estimateEdge(model, episodes, labels)
+    -- Following recommended implementation details, the number
+    -- of samples used each round is fixed instead of adaptive. So,
+    -- we can have this method take the dataset as the argument directly
+    
+    -- Episodes: seqlen * episodes x featsize
+    -- Labels: episodes
+    -- Since we're not interested in running updates we can just run
+    -- the whole batch
 end
