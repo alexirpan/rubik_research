@@ -211,6 +211,25 @@ function csvLine(save_info)
 end
 
 
+function csvFilterHeader()
+    return 'epoch,train_err,train_acc,test_err,test_acc,boost_acc,boost_time,total_time\n'
+end
+
+
+function csvFilterLine(save_info)
+    return string.format('%d,%f,%f,%f,%f,%f,%f,%f\n',
+        save_info.epoch,
+        save_info.train_err,
+        save_info.train_acc,
+        save_info.test_err,
+        save_info.test_acc,
+        save_info.boost_acc,
+        save_info.boost_time,
+        save_info.total_time
+    )
+end
+
+
 function lastTimeFromCsv(file)
     --Reads total time from the final csv row
     --When function finishes, file pointer will be at end of file
@@ -475,13 +494,16 @@ function trainModelFilterBoost(weak_model, loss)
     -- auto deletes all data
     trainCsv = torch.DiskFile(hyperparams.saved_to .. '/trainingdata.csv', 'rw')
     trainCsv:seekEnd()
+    -- DIFF 1.5
+    -- Special CSV writing for FilterBoost
     if trainCsv:position() == 1 then
         -- writes header only if file is initially empty
-        trainCsv:writeString(csvHeader())
+        trainCsv:writeString(csvFilterHeader())
     else
         -- find time offset
         timeOffset = lastTimeFromCsv(trainCsv)
     end
+    -- END DIFF 1.5
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
@@ -659,6 +681,43 @@ function trainModelFilterBoost(weak_model, loss)
         end
         -- END DIFF SIX
 
+        -- DIFF SEVEN
+        -- Compute accuracy of the boosted classifier on a sampled test set from
+        -- the unfiltered distribution
+        local boostTimer = torch.Timer()
+        local n_boost_test = hyperparams.n_boost_test
+        local boost_test, boost_labels = generateEpisodes(n_boost_test)
+        boost_test:resize(n_boost_test * episode_length, N_STICKERS * N_COLORS)
+        local boost_correct = 0, 0
+        -- Model only takes one cube episode at a time
+        for i = 1, n_boost_test do
+            local inputs = {}
+            local targets = {}
+            local start = (i-1) * episode_length
+            for step = 1, episode_length do
+                inputs[step] = boost_test[start + step]
+                targets[step] = boost_labels[start + step]
+            end
+            model:forget() -- forget past test runs
+            local outputs = model:forward(inputs)
+
+            for step = 1, episode_length do
+                _, best = outputs[step]:max(1)
+                trueVal = targets[step]
+                if best[1] == targets[step] then
+                    boost_correct = boost_correct + 1
+                end
+            end
+        end
+
+        boost_correct = boost_correct / (n_boost_test * episode_length) * 100
+        print(string.format("Boosted test accuracy = %f %%", boost_correct))
+        seconds = boostTimer:time().real
+        boost_time_min = seconds / 60
+        seconds = seconds - 60 * math.floor(boost_time_min)
+        print(string.format('%d minutes %f seconds finding boosted accuracy', minutes, seconds))
+        -- END DIFF SEVEN
+
         -- save epoch data
         if CUDA then
             -- convert the model back to DoubleTensor before saving
@@ -669,6 +728,8 @@ function trainModelFilterBoost(weak_model, loss)
         total_time_sec = timer:time().real
         total_time_min = total_time_sec / 60
 
+        -- DIFF EIGHT
+        -- Add Boost info to saved CSV
         -- TODO
         -- If models take up too much space, only save the model with highest
         -- validation accuracy
@@ -678,17 +739,20 @@ function trainModelFilterBoost(weak_model, loss)
             train_acc = correct,
             test_err = test_err,
             test_acc = test_correct,
+            boost_acc = boost_correct,
             epoch = epoch,
             total_time = total_time_min + timeOffset,
+            boost_time = boost_time_min,
             hyperparams = hyperparams
         }
-        trainCsv:writeString(csvLine(saved))
+        trainCsv:writeString(csvFilterLine(saved))
 
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
             filename = saveTo .. '/rubiks_best'
             torch.save(filename, saved, 'ascii')
         end
+        -- END DIFF EIGHT
 
         filename = saveTo .. '/rubiks_epoch' .. epoch
         torch.save(filename, saved, 'ascii')
@@ -721,6 +785,7 @@ if from_cmd_line then
     cmd:option('--gpu', 0, 'Use GPU or not')
     cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note this will clobber the model type (but will not clobber anything else)")
     cmd:option('--filboost', 0, 'Use FilterBoost or not')
+    cmd:option('--nboosttest', 5000, 'Samples to use for testing boosted model. Ignored unless FilterBoost is used')
     opt = cmd:parse(arg or {})
 
     CUDA = (opt.gpu ~= 0)
@@ -744,7 +809,8 @@ if from_cmd_line then
         saved_to = opt.savedir,
         model_type = opt.type,
         using_gpu = CUDA,
-        filterboost = (opt.filboost ~= 0)
+        filterboost = (opt.filboost ~= 0),
+        n_boost_test = opt.nboosttest
     }
     if opt.model ~= NOMODEL then
         print('Loading a previously trained model')
