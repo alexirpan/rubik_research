@@ -143,7 +143,6 @@ function estimateEdge(model, episodes, labels, episode_length)
     -- Following recommended implementation details, the number
     -- of samples used each round is fixed instead of adaptive. So,
     -- we can have this method take the dataset as the argument directly
-    
     -- Episodes: seqlen * episodes x featsize
     -- Labels: episodes
     -- Since we're not interested in running updates we can just run
@@ -172,5 +171,5 @@ function estimateEdge(model, episodes, labels, episode_length)
             episode_outputs[ep][step] = outputs[step][ep]
         end
     end
-    return 0.5 * pseudoloss(episode_outputs, labels)
+    return 0.5 - pseudoloss(episode_outputs, labels)
 end
