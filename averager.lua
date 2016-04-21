@@ -86,7 +86,8 @@ function Averager:updateOutput(input)
     -- given a table of output probabilities
     if self.n_models == 0 then
         -- TODO don't use global number of classes here
-        return torch.ones(N_MOVES) / N_MOVES
+        local out = torch.ones(N_MOVES) / N_MOVES
+        return out:log()
     end
     self.model_outputs = {}
     for i=1, self.n_models do
