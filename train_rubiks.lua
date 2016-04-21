@@ -339,7 +339,11 @@ function trainModel(model, loss)
             model:updateParameters(learningRate)
         end
         -- for averages, we need to account for there being n_episodes * episode_length samples total
-        err = err / (n_train * episode_length)
+        -- Loss already averages over batch size, so we only need to divide by
+        -- number of batches
+        err = err / (nBatches * episode_length)
+        -- On the other hand, here we do need to divide by the number of training
+        -- examples
         correct = correct / (n_train * episode_length) * 100
         print(string.format(
             "Epoch %d: Average training loss = %f, training accuracy = %f %%",
@@ -382,7 +386,9 @@ function trainModel(model, loss)
             test_correct = test_correct + best:eq(trueVal):sum()
         end
         -- again account for episode length
-        test_err = test_err / (n_test * episode_length)
+        -- TODO verify that the loss is automatically averaged over the batch size
+        -- (This appears to be the case but I can't find it in the docs)
+        test_err = test_err / episode_length
         test_correct = test_correct / (n_test * episode_length) * 100
         print(string.format("Test loss = %f, test accuracy = %f %%", test_err, test_correct))
 
