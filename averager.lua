@@ -64,6 +64,9 @@ function Averager:addModel(model, weight)
         self.weights[1] = weight
     else
         local new_weights = torch.Tensor(self.n_models + 1)
+        if CUDA then
+            new_weights = new_weights:cuda()
+        end
         new_weights[{ {1, self.n_models} }] = self.weights
         new_weights[self.n_models + 1] = weight
         self.weights = new_weights
@@ -94,9 +97,9 @@ function Averager:updateOutput(input)
         end
         return out
     end
-    self.model_outputs = {}
+    local model_outputs = {}
     for i=1, self.n_models do
-        self.model_outputs[i] = self.models[i]:forward(input)
+        model_outputs[i] = self.models[i]:forward(input)
     end
     -- At this point, model_outputs[i] is a table of
     -- 1D Tensors of size N_MOVES
@@ -110,7 +113,7 @@ function Averager:updateOutput(input)
         end
         for i=1, self.n_models do
             -- output is log prob, copy to keep model output intact
-            episode_totals[step] = episode_totals[step] + self.model_outputs[i][step]:clone():exp() * self.weights[i]
+            episode_totals[step] = episode_totals[step] + model_outputs[i][step]:clone():exp() * self.weights[i]
         end
         episode_totals[step] = episode_totals[step] / self.weights:sum()
     end
@@ -137,7 +140,9 @@ function Averager:double()
     for i = 1, self.n_models do
         self.models[i] = self.models[i]:double()
     end
-    self.weights:double()
+    if self.n_models > 0 then
+        self.weights = self.weights:double()
+    end
     return self
 end
 
@@ -147,7 +152,7 @@ function Averager:cuda()
         self.models[i] = self.models[i]:cuda()
     end
     if self.n_models > 0 then
-        self.weights:cuda()
+        self.weights = self.weights:cuda()
     end
     return self
 end
