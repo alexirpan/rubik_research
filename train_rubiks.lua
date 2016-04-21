@@ -349,33 +349,37 @@ function trainModel(model, loss)
         ))
 
         -- test error
+        -- Since we're not interested in updating the model, we can run one
+        -- huge batch
         local test_err, test_correct = 0, 0
+        -- Construct table from testset
+        local seqIndices = torch.LongTensor():range(
+            1, 1 + (n_test-1) * episode_length, episode_length
+        )
+        local inputs = {}
+        for step = 1, episode_length do
+            inputs[step] = test:index(1, seqIndices)
+            seqIndices = seqIndices + 1
+        end
+        model:forget() -- forget past test runs
+        local outputs = model:forward(inputs)
+        local seqIndices = torch.LongTensor():range(
+            1, 1 + (n_test-1) * episode_length, episode_length
+        )
+        local targets = {}
+        for step = 1, episode_length do
+            targets[step] = test_labels:index(1, seqIndices)
+            seqIndices = seqIndices + 1
+        end
+        test_err = loss:forward(outputs, targets)
 
-        for i = 1, n_test do
-            local start = (i-1) * episode_length + 1
-            input_ = test:narrow(1, start, episode_length)
-            -- The sequencer interface expects a Lua table of
-            -- seqlen entries, each of which is a batchsize x featsize tensor
-            input = {}
-            for step = 1,episode_length do
-                input[step] = input_[step]
-            end
-            model:forget() -- forget past test runs
-            output = model:forward(input)
-            target_ = test_labels:narrow(1, start, episode_length)
-            -- Again, table instead of tensor
-            target = {}
-            for step = 1,episode_length do
-                target[step] = target_[step]
-            end
-            test_err = test_err + loss:forward(output, target)
-
-            for step = 1, episode_length do
-                _, best = output[step]:max(1)
-                if best[1] == target[step] then
-                    test_correct = test_correct + 1
-                end
-            end
+        -- outputs is a table of seqlen entries, each of size
+        -- (batchsize, N_MOVES), and here batchsize = n_test
+        for step = 1, episode_length do
+            _, best = outputs[step]:max(2)
+            best:resize(n_test)
+            trueVal = targets[step]
+            test_correct = test_correct + best:eq(trueVal):sum()
         end
         -- again account for episode length
         test_err = test_err / (n_test * episode_length)
