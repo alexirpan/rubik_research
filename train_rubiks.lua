@@ -439,11 +439,22 @@ end
 -- It's happening.
 -- The dreaded copy-paste
 -- One day, this will be less awful. But not today
+-- Key differences should be highlighted by the comments
 function trainModelFilterBoost(weak_model, loss)
     -- In this method, "model" is the weak learner
     -- It will be copied to be used in the final booster
     local timer = torch.Timer()
     local timeOffset = 0
+
+    -- DIFF ONE
+    -- More hyperparameters, define a new model
+    hyperparams.max_models = 10
+    hyperparams.target_error = 0.0001  -- pseudoloss approaches this
+    hyperparams.confidence = 0.0001  -- with probability at most 1 - this
+    -- Resave the hyperparams
+    torch.save(opt.savedir .. '/hyperparams', hyperparams, 'ascii')
+    local model = nn.Averager({}, 0, hyperparams.max_models)
+    -- END DIFF ONE
 
     best_acc = 0
     -- It's structured this way to make sure that if the script is run for
@@ -471,29 +482,34 @@ function trainModelFilterBoost(weak_model, loss)
         print('Creating data')
         local dataTimer = torch.Timer()
 
-        data = createDataset(n_train, n_valid, n_test)
-        -- flatten last two axes
-        data['train']:resize(n_train * episode_length,
-                             N_STICKERS * N_COLORS)
-        data['valid']:resize(n_test * episode_length,
-                             N_STICKERS * N_COLORS)
-        data['test']:resize(n_test * episode_length,
-                             N_STICKERS * N_COLORS)
-
+        -- DIFF TWO
+        -- Generate training data with the filter method
+        local conf_t = hyperparams.confidence / (3 * epoch * (epoch + 1))
+        local train, train_labels, n_samples = filteredDataset(
+            model,
+            hyperparams.target_error,
+            conf_t,
+            n_train,
+            episode_length
+        )
+        if train == nil then
+            --terminate
+            print('Failed to generate samples, stopping...')
+            --TODO FILL ME OUT
+            --(As in, verify everything we need to output is outputted)
+            return
+        end
         seconds = dataTimer:time().real
         minutes = math.floor(seconds / 60)
         seconds = seconds - 60 * minutes
-        print(string.format('Spent %d minutes %f seconds creating data', minutes, seconds))
-
-        train = data['train']
-        train_labels = data['train_labels']
-        valid = data['valid']
-        valid_labels = data['valid_labels']
-        test = data['test']
-        test_labels = data['test_labels']
+        print(string.format('Spent %d minutes %f seconds creating training data', minutes, seconds))
+        print(string.format('Accepted %f samples', n_train / n_samples))
+        -- END DIFF TWO
 
         local err, correct = 0, 0
 
+        -- DIFF THREE
+        -- Changing all of this code to use weak model instead
         -- go through batches in random order
         local nBatches = n_train / batchSize
         local perm = torch.randperm(nBatches)
@@ -519,10 +535,10 @@ function trainModelFilterBoost(weak_model, loss)
             end
 
             -- run sequence forward through rnn
-            model:zeroGradParameters()
-            model:forget()  -- forget past time steps
+            weak_model:zeroGradParameters()
+            weak_model:forget()  -- forget past time steps
 
-            local outputs = model:forward(inputs)
+            local outputs = weak_model:forward(inputs)
             err = err + loss:forward(outputs, targets)
 
             -- reset seqIndices to check accuracy
@@ -541,11 +557,12 @@ function trainModelFilterBoost(weak_model, loss)
 
             -- backward sequence (backprop through time)
             local gradOutputs = loss:backward(outputs, targets)
-            local gradInputs = model:backward(inputs, gradOutputs)
+            local gradInputs = weak_model:backward(inputs, gradOutputs)
 
             -- and update
-            model:updateParameters(learningRate)
+            weak_model:updateParameters(learningRate)
         end
+        -- END DIFF THREE
         -- for averages, we need to account for there being n_episodes * episode_length samples total
         -- Loss already averages over batch size, so we only need to divide by
         -- number of batches
@@ -560,7 +577,26 @@ function trainModelFilterBoost(weak_model, loss)
             correct
         ))
 
-        -- test error
+        -- DIFF FOUR
+        -- Use Filter to get test set too
+        -- Filter using the boosted model
+        local dataTimer = torch.Timer()
+        local test, test_labels, n_samples = filteredDataset(
+            model,
+            hyperparams.target_error,
+            conf_t,
+            n_test,
+            episode_length
+        )
+        seconds = dataTimer:time().real
+        minutes = math.floor(seconds / 60)
+        seconds = seconds - 60 * minutes
+        print(string.format('Spent %d minutes %f seconds creating test data', minutes, seconds))
+        print(string.format('Accepted %f samples', n_test / n_samples))
+        -- END DIFF FOUR
+
+        -- DIFF FIVE
+        -- test error of JUST THE WEAK MODEL
         -- Since we're not interested in updating the model, we can run one
         -- huge batch
         local test_err, test_correct = 0, 0
@@ -573,8 +609,8 @@ function trainModelFilterBoost(weak_model, loss)
             inputs[step] = test:index(1, seqIndices)
             seqIndices = seqIndices + 1
         end
-        model:forget() -- forget past test runs
-        local outputs = model:forward(inputs)
+        weak_model:forget() -- forget past test runs
+        local outputs = weak_model:forward(inputs)
         local seqIndices = torch.LongTensor():range(
             1, 1 + (n_test-1) * episode_length, episode_length
         )
@@ -598,7 +634,23 @@ function trainModelFilterBoost(weak_model, loss)
         -- (This appears to be the case but I can't find it in the docs)
         test_err = test_err / episode_length
         test_correct = test_correct / (n_test * episode_length) * 100
-        print(string.format("Test loss = %f, test accuracy = %f %%", test_err, test_correct))
+        print(string.format("For this round, test loss = %f, test accuracy = %f %%", test_err, test_correct))
+        -- END DIFF FIVE
+
+        -- DIFF SIX
+        -- Compute edge of the weak_model and add to boosted model
+        local edge = estimateEdge(outputs, test_labels, n_test, episode_length)
+        print(string.format("Pseudoloss = %f", (edge - 0.5) * -1))
+
+        if edge < 0 then
+            print("!!! EDGE WAS NOT POSITIVE !!!")
+            print("Not adding classifier this round, trying again...")
+        else
+            local alpha = 0.5 * math.log( (0.5 + edge) / (0.5 - edge) )
+            local toAdd = weak_model:clone()
+            model:addModel(weak_model. alpha)
+        end
+        -- END DIFF SIX
 
         -- save epoch data
         if CUDA then

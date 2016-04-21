@@ -120,6 +120,20 @@ function Averager:forget()
 end
 
 
+function Averager:double()
+    for i = 1, self.n_models do
+        self.models[i] = self.models[i]:double()
+    end
+end
+
+
+function Averager:cuda()
+    for i = 1, self.n_models do
+        self.models[i] = self.models[i]:cuda()
+    end
+end
+
+
 function Averager:updateGradInput(probTable, gradOutput)
     --TODO decide if this is worth implementing
     error("Averager gradient update not implemented")

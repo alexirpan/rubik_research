@@ -96,7 +96,7 @@ function _threshold(err, conf, prev_calls)
 end
 
 
-function nextDataset(model, target_error, confidence, n_episodes, episode_length)
+function filteredDataset(model, target_error, confidence, n_episodes, episode_length)
     -- FilterBoost halts when the error of the model (defined according to
     -- the pseudoloss) is <= target_error with probability >= 1 - confidence
     -- These essentially control the stopping criterion
@@ -139,26 +139,8 @@ function nextDataset(model, target_error, confidence, n_episodes, episode_length
 end
 
 
-function estimateEdge(model, episodes, labels, episode_length)
-    -- Following recommended implementation details, the number
-    -- of samples used each round is fixed instead of adaptive. So,
-    -- we can have this method take the dataset as the argument directly
-    -- Episodes: seqlen * episodes x featsize
-    -- Labels: episodes
-    -- Since we're not interested in running updates we can just run
-    -- the whole batch
-    local n_episodes = labels:size(1)
-    local seqIndices = torch.LongTensor():range(
-        1, 1 + (n_episodes-1) * episode_length, episode_length
-    )
-    local inputs = {}
-    for step = 1, episode_length do
-        inputs[step] = episodes:index(1, seqIndices)
-        seqIndices = seqIndices + 1
-    end
-    model:forget() -- forget past test runs
-    local outputs = model:forward(inputs)
-    -- (seqlen, n_episodes, N_MOVES)
+function estimateEdge(outputs, labels, n_episodes, episode_length)
+    -- This is passed the run of model outputs from higher up the stack
     -- Exponentiate outputs
     for step = 1, episode_length do
         outputs[step] = outputs[step]:exp()
