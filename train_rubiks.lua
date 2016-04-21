@@ -436,6 +436,214 @@ function trainModel(model, loss)
 end
 
 
+-- It's happening.
+-- The dreaded copy-paste
+-- One day, this will be less awful. But not today
+function trainModelFilterBoost(weak_model, loss)
+    -- In this method, "model" is the weak learner
+    -- It will be copied to be used in the final booster
+    local timer = torch.Timer()
+    local timeOffset = 0
+
+    best_acc = 0
+    -- It's structured this way to make sure that if the script is run for
+    -- 20 epochs, and the same model is trained for another 20 epochs, all
+    -- saved information for the second run starts at 21 (and ends at 40)
+    epoch = prev_epochs + 1
+
+    -- this file stays open until end of training
+    -- Always open this file in rw mode! Sometimes we run the training script on
+    -- the same directory (ex: when we want to refine an already trained model)
+    -- and in that case the training csv will already exist. Opening in w mode
+    -- auto deletes all data
+    trainCsv = torch.DiskFile(hyperparams.saved_to .. '/trainingdata.csv', 'rw')
+    trainCsv:seekEnd()
+    if trainCsv:position() == 1 then
+        -- writes header only if file is initially empty
+        trainCsv:writeString(csvHeader())
+    else
+        -- find time offset
+        timeOffset = lastTimeFromCsv(trainCsv)
+    end
+
+    while epoch <= n_epochs do
+        print('Starting epoch', epoch)
+        print('Creating data')
+        local dataTimer = torch.Timer()
+
+        data = createDataset(n_train, n_valid, n_test)
+        -- flatten last two axes
+        data['train']:resize(n_train * episode_length,
+                             N_STICKERS * N_COLORS)
+        data['valid']:resize(n_test * episode_length,
+                             N_STICKERS * N_COLORS)
+        data['test']:resize(n_test * episode_length,
+                             N_STICKERS * N_COLORS)
+
+        seconds = dataTimer:time().real
+        minutes = math.floor(seconds / 60)
+        seconds = seconds - 60 * minutes
+        print(string.format('Spent %d minutes %f seconds creating data', minutes, seconds))
+
+        train = data['train']
+        train_labels = data['train_labels']
+        valid = data['valid']
+        valid_labels = data['valid_labels']
+        test = data['test']
+        test_labels = data['test_labels']
+
+        local err, correct = 0, 0
+
+        -- go through batches in random order
+        local nBatches = n_train / batchSize
+        local perm = torch.randperm(nBatches)
+
+        -- n_train is the number of sequences
+        -- we do (batchSize) sequences at once
+        for j = 1, nBatches do
+            ind = perm[j]
+            -- generate a batch of sequences
+            -- as constructed, each episode_length block is a new sequence
+            -- So to get batchSize sequences at once, we need to start pulling from
+            -- (start, start + EPISODE, start + 2*EPISODE, ...)
+            start = (ind - 1) * batchSize * episode_length + 1
+            local seqIndices = torch.LongTensor():range(
+                start, start + (batchSize - 1) * episode_length, episode_length
+            )
+
+            local inputs, targets = {}, {}
+            for step = 1, episode_length do
+                inputs[step] = train:index(1, seqIndices)
+                targets[step] = train_labels:index(1, seqIndices)
+                seqIndices:add(1)
+            end
+
+            -- run sequence forward through rnn
+            model:zeroGradParameters()
+            model:forget()  -- forget past time steps
+
+            local outputs = model:forward(inputs)
+            err = err + loss:forward(outputs, targets)
+
+            -- reset seqIndices to check accuracy
+            seqIndices = torch.LongTensor():range(
+                start, start + (batchSize - 1) * episode_length, episode_length
+            )
+
+            for step = 1, episode_length do
+                -- compute accuracy
+                -- shape of output at each step is (batchSize, N_MOVES)
+                _, predicted = outputs[step]:max(2)
+                predicted:resize(batchSize)
+                trueVal = targets[step]
+                correct = correct + predicted:eq(trueVal):sum()
+            end
+
+            -- backward sequence (backprop through time)
+            local gradOutputs = loss:backward(outputs, targets)
+            local gradInputs = model:backward(inputs, gradOutputs)
+
+            -- and update
+            model:updateParameters(learningRate)
+        end
+        -- for averages, we need to account for there being n_episodes * episode_length samples total
+        -- Loss already averages over batch size, so we only need to divide by
+        -- number of batches
+        err = err / (nBatches * episode_length)
+        -- On the other hand, here we do need to divide by the number of training
+        -- examples
+        correct = correct / (n_train * episode_length) * 100
+        print(string.format(
+            "Epoch %d: Average training loss = %f, training accuracy = %f %%",
+            epoch,
+            err,
+            correct
+        ))
+
+        -- test error
+        -- Since we're not interested in updating the model, we can run one
+        -- huge batch
+        local test_err, test_correct = 0, 0
+        -- Construct table from testset
+        local seqIndices = torch.LongTensor():range(
+            1, 1 + (n_test-1) * episode_length, episode_length
+        )
+        local inputs = {}
+        for step = 1, episode_length do
+            inputs[step] = test:index(1, seqIndices)
+            seqIndices = seqIndices + 1
+        end
+        model:forget() -- forget past test runs
+        local outputs = model:forward(inputs)
+        local seqIndices = torch.LongTensor():range(
+            1, 1 + (n_test-1) * episode_length, episode_length
+        )
+        local targets = {}
+        for step = 1, episode_length do
+            targets[step] = test_labels:index(1, seqIndices)
+            seqIndices = seqIndices + 1
+        end
+        test_err = loss:forward(outputs, targets)
+
+        -- outputs is a table of seqlen entries, each of size
+        -- (batchsize, N_MOVES), and here batchsize = n_test
+        for step = 1, episode_length do
+            _, best = outputs[step]:max(2)
+            best:resize(n_test)
+            trueVal = targets[step]
+            test_correct = test_correct + best:eq(trueVal):sum()
+        end
+        -- again account for episode length
+        -- TODO verify that the loss is automatically averaged over the batch size
+        -- (This appears to be the case but I can't find it in the docs)
+        test_err = test_err / episode_length
+        test_correct = test_correct / (n_test * episode_length) * 100
+        print(string.format("Test loss = %f, test accuracy = %f %%", test_err, test_correct))
+
+        -- save epoch data
+        if CUDA then
+            -- convert the model back to DoubleTensor before saving
+            -- Otherwise it's only loadable on machines with GPU
+            model = model:double()
+        end
+
+        total_time_sec = timer:time().real
+        total_time_min = total_time_sec / 60
+
+        -- TODO
+        -- If models take up too much space, only save the model with highest
+        -- validation accuracy
+        saved = {
+            model = model,
+            train_err = err,
+            train_acc = correct,
+            test_err = test_err,
+            test_acc = test_correct,
+            epoch = epoch,
+            total_time = total_time_min + timeOffset,
+            hyperparams = hyperparams
+        }
+        trainCsv:writeString(csvLine(saved))
+
+        if saved.test_acc > best_acc then
+            best_acc = saved.test_acc
+            filename = saveTo .. '/rubiks_best'
+            torch.save(filename, saved, 'ascii')
+        end
+
+        filename = saveTo .. '/rubiks_epoch' .. epoch
+        torch.save(filename, saved, 'ascii')
+
+        -- convert back
+        if CUDA then
+            model = model:cuda()
+        end
+
+        epoch = epoch + 1
+    end
+end
+
+
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then

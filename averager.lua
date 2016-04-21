@@ -87,7 +87,7 @@ function Averager:updateOutput(input)
     if self.n_models == 0 then
         -- TODO don't use global number of classes here
         local out = torch.ones(N_MOVES) / N_MOVES
-        return out:log()
+        return out
     end
     self.model_outputs = {}
     for i=1, self.n_models do
@@ -101,7 +101,7 @@ function Averager:updateOutput(input)
         total = total + self.model_outputs[i]:clone():exp() * self.weights[i]
     end
     total = total / self.weights:sum()
-    return total:log()
+    return total
 end
 
 
