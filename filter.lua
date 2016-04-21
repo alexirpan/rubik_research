@@ -103,17 +103,28 @@ function _threshold(err, conf, prev_calls)
 end
 
 
-function filteredDataset(model, target_error, confidence, n_episodes, episode_length)
+function filteredDataset(model, target_error, confidence, n_episodes, episode_length, weighted)
+    -- For efficiency reasons, we may want to weight samples instead of resampling
+    -- with that probability
+    if weighted == nil then
+        weighted = False
+    end
     -- FilterBoost halts when the error of the model (defined according to
     -- the pseudoloss) is <= target_error with probability >= 1 - confidence
     -- These essentially control the stopping criterion
     local eps = torch.Tensor(n_episodes * episode_length, N_STICKERS * N_COLORS):zero()
     local eps_labels = torch.LongTensor(n_episodes * episode_length):zero()
+    if weighted then
+        local episode_weights = torch.Tensor(n_episodes):zero()
+    end
     -- Horribly abusing Lua globals here - this should be set
     -- in time
     if CUDA then
         eps = eps:cuda()
         eps_labels = eps_labels:cuda()
+        if weighted then
+            episode_weights = episode_weights:cuda()
+        end
     end
 
     local i = 1
@@ -133,7 +144,10 @@ function filteredDataset(model, target_error, confidence, n_episodes, episode_le
         episode:resize(episode_length, N_STICKERS * N_COLORS)
         total_samples = total_samples + 1
         local prob = accept_prob(model, episode, moves, episode_length, target_error, dt_prime)
-        if torch.uniform() < prob then
+        if weighted then
+            episode_weights[i] = prob
+        end
+        if weighted or torch.uniform() < prob then
             local start = (i-1) * episode_length
             eps[{ {start+1, start+episode_length} }] = episode
             eps_labels[{ {start+1, start+episode_length} }] = moves
@@ -155,7 +169,11 @@ function filteredDataset(model, target_error, confidence, n_episodes, episode_le
             print(math.ceil(threshold), 'rejects in a row needed to stop')
         end
     end
-    return eps, eps_labels, total_samples
+    if weighted then
+        return eps, eps_labels, episode_weights
+    else
+        return eps, eps_labels, total_samples
+    end
 end
 
 
