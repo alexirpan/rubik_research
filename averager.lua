@@ -85,23 +85,36 @@ end
 function Averager:updateOutput(input)
     -- given a table of output probabilities
     if self.n_models == 0 then
-        -- TODO don't use global number of classes here
-        local out = torch.ones(N_MOVES) / N_MOVES
+        -- We need to replicate Sequencer behavior
+        local n_out = #input
+        local out = {}
+        for i = 1, n_out do
+            -- TODO don't use global number of classes here
+            out[i] = torch.ones(N_MOVES) / N_MOVES
+        end
         return out
     end
     self.model_outputs = {}
     for i=1, self.n_models do
         self.model_outputs[i] = self.models[i]:forward(input)
     end
+    -- At this point, model_outputs[i] is a table of
+    -- 1D Tensors of size N_MOVES
 
-    local n_classes = #self.model_outputs[1]
-    local total = torch.Tensor(n_classes):zero()
-    for i=1, self.n_models do
-        -- output is log prob, copy to keep model output intact
-        total = total + self.model_outputs[i]:clone():exp() * self.weights[i]
+    local epslen = #input
+    local episode_totals = {}
+    for step = 1, epslen do
+        episode_totals[step] = torch.Tensor(N_MOVES):zero()
+        if CUDA then
+            episode_totals[step] = episode_totals[step]:cuda()
+        end
+        for i=1, self.n_models do
+            -- output is log prob, copy to keep model output intact
+            episode_totals[step] = episode_totals[step] + self.model_outputs[i][step]:clone():exp() * self.weights[i]
+        end
+        episode_totals[step] = episode_totals[step] / self.weights:sum()
     end
-    total = total / self.weights:sum()
-    return total
+    return episode_totals
 end
 
 
@@ -124,6 +137,8 @@ function Averager:double()
     for i = 1, self.n_models do
         self.models[i] = self.models[i]:double()
     end
+    self.weights:double()
+    return self
 end
 
 
@@ -131,6 +146,10 @@ function Averager:cuda()
     for i = 1, self.n_models do
         self.models[i] = self.models[i]:cuda()
     end
+    if self.n_models > 0 then
+        self.weights:cuda()
+    end
+    return self
 end
 
 

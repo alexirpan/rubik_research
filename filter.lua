@@ -28,14 +28,14 @@ function _qvec(prob_output, right_label)
         if class == right_label then
             dist[class] = 0
         else
-            dist[class] = _qprime(prob_output, right_label, wrong_label)
+            dist[class] = _qprime(prob_output, right_label, class)
         end
     end
     return dist / dist:sum()
 end
 
 
-function psuedoloss(prob_outputs, labels)
+function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
     -- Implements the pseudoloss function used in FilterBoost
     -- This assumes the output is the probability, not the log probability
     -- The pseudoloss is defined such that:
@@ -48,25 +48,32 @@ function psuedoloss(prob_outputs, labels)
     --
     -- This lets us define edge by 1/2 - pseudoloss, and also makes the
     -- optimization prefer solutions that output one clear winning class
-
-    -- We're rejecting on a per-episode basis instead of a per-sample
-    -- basis, so average the pseudoloss over the samples
-    -- TODO check theoretical guarantees of this
     local loss = 0
-    for step = 1, #labels do
-        local correct = labels[step]
-        local weights = _qvec(prob_outputs[step], correct)
-        -- The summation over wrong labels
-        local sampleloss = weights * prob_outputs[step]
-        -- Term for correct label
-        sampleloss = 1 - prob_outputs[step][correct]
-        loss = loss + 0.5 * sampleloss
+    -- prob_outputs is a table here
+    for ep = 1, n_episodes do
+        local episode = episode_outputs[ep]
+        local start = (ep - 1) * episode_length
+        for step = 1, episode_length do
+            local ind = start + step
+            local correct = labels[ind]
+            local weights = _qvec(episode[step], correct)
+            -- The summation over wrong labels
+            if CUDA then
+                local sampleloss = weights:cuda() * episode[step]
+            else
+                local sampleloss = weights * episode[step]
+            end
+            -- Term for correct label
+            sampleloss = 1 - episode[step][correct]
+            loss = loss + 0.5 * sampleloss
+        end
     end
-    return loss / #labels
+    -- There are n_episodes * episode_length in total
+    return loss / (n_episodes * episode_length)
 end
 
 
-function accept_prob(model, episode, labels, edge, goal_err, confidence)
+function accept_prob(model, episode, labels, episode_length, goal_err, confidence)
     -- Returns the accept probability of the sample
     -- By returning the probability directly, we can let other algorithms
     -- decide whether to accept/reject or to weight the sample
@@ -75,16 +82,16 @@ function accept_prob(model, episode, labels, edge, goal_err, confidence)
 
     -- move episode to table
     local input = {}
-    for step = 1, #episode do
+    for step = 1, episode_length do
         input[step] = episode[step]
     end
     local output = model:forward(input)
     -- Again use average over episode
     local avg_pprime = 0
-    for step = 1, #episode do
+    for step = 1, episode_length do
         avg_pprime = avg_pprime + _pprime(output[step], labels[step])
     end
-    avg_pprime = avg_pprime / #episode
+    avg_pprime = avg_pprime / episode_length
 
     local prob = avg_pprime / (N_MOVES - 1)
     return prob
@@ -100,8 +107,14 @@ function filteredDataset(model, target_error, confidence, n_episodes, episode_le
     -- FilterBoost halts when the error of the model (defined according to
     -- the pseudoloss) is <= target_error with probability >= 1 - confidence
     -- These essentially control the stopping criterion
-    local eps = torch.Tensor(n_episodes * episode_length, N_STICKERS, N_COLORS):zero()
+    local eps = torch.Tensor(n_episodes * episode_length, N_STICKERS * N_COLORS):zero()
     local eps_labels = torch.LongTensor(n_episodes * episode_length):zero()
+    -- Horribly abusing Lua globals here - this should be set
+    -- in time
+    if CUDA then
+        eps = eps:cuda()
+        eps_labels = eps_labels:cuda()
+    end
 
     local i = 1
     local total_samples = 0
@@ -111,8 +124,15 @@ function filteredDataset(model, target_error, confidence, n_episodes, episode_le
 
     while i <= n_episodes do
         local episode, moves = randomCubeEpisode(episode_length)
+        -- Horribly abusing Lua globals here - this should be set
+        -- in time
+        if CUDA then
+            episode = episode:cuda()
+            moves = moves:cuda()
+        end
+        episode:resize(episode_length, N_STICKERS * N_COLORS)
         total_samples = total_samples + 1
-        local prob = accept_prob(model, episode, moves, FILL, FILL, FILL)
+        local prob = accept_prob(model, episode, moves, episode_length, target_error, dt_prime)
         if torch.uniform() < prob then
             local start = (i-1) * episode_length
             eps[{ {start+1, start+episode_length} }] = episode
@@ -129,10 +149,10 @@ function filteredDataset(model, target_error, confidence, n_episodes, episode_le
                 return
             end
         end
-        if total_samples % 1000 == 0 then
+        if total_samples % 100000 == 0 then
             print(total_samples, 'episodes sampled for epoch so far')
             print(i, 'episodes accepted for dataset')
-            print(threshold, 'rejects in a row needed to stop')
+            print(math.ceil(threshold), 'rejects in a row needed to stop')
         end
     end
     return eps, eps_labels, total_samples
@@ -145,13 +165,23 @@ function estimateEdge(outputs, labels, n_episodes, episode_length)
     for step = 1, episode_length do
         outputs[step] = outputs[step]:exp()
     end
-    -- Rearrange back into output for the episodes
+    -- Shapes:
+    --  outputs is a table of epslen elements, each is n_test x N_MOVES
+    --  labels is labels for ep 1, ep 2, ep3, all concatenated together
+    --  The first episode is the first entry in each table tensor
+    --  The second is the 2nd entry in each table tensor
+    --  etc.
     local episode_outputs = {}
     for ep = 1, n_episodes do
-        episode_outputs[ep] = {}
+        episode_outputs[ep] = torch.Tensor(episode_length, N_MOVES)
+        -- Again, abusing Lua globals here
+        if CUDA then
+            episode_outputs[ep] = episode_outputs[ep]:cuda()
+        end
+
         for step = 1, episode_length do
             episode_outputs[ep][step] = outputs[step][ep]
         end
     end
-    return 0.5 - pseudoloss(episode_outputs, labels)
+    return 0.5 - pseudoloss(episode_outputs, labels, n_episodes, episode_length)
 end

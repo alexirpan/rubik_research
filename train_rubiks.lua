@@ -454,6 +454,12 @@ function trainModelFilterBoost(weak_model, loss)
     -- Resave the hyperparams
     torch.save(opt.savedir .. '/hyperparams', hyperparams, 'ascii')
     local model = nn.Averager({}, 0, hyperparams.max_models)
+    if CUDA then
+        model = model:cuda()
+    end
+    -- Note we don't need to wrap Averager in Sequencer, because this
+    -- assumes all models given to it are Sequencers, so they will
+    -- unpack tables automatically
     -- END DIFF ONE
 
     best_acc = 0
@@ -503,7 +509,7 @@ function trainModelFilterBoost(weak_model, loss)
         minutes = math.floor(seconds / 60)
         seconds = seconds - 60 * minutes
         print(string.format('Spent %d minutes %f seconds creating training data', minutes, seconds))
-        print(string.format('Accepted %f samples', n_train / n_samples))
+        print(string.format('Accepted %f %% of samples for train', n_train / n_samples * 100))
         -- END DIFF TWO
 
         local err, correct = 0, 0
@@ -592,7 +598,7 @@ function trainModelFilterBoost(weak_model, loss)
         minutes = math.floor(seconds / 60)
         seconds = seconds - 60 * minutes
         print(string.format('Spent %d minutes %f seconds creating test data', minutes, seconds))
-        print(string.format('Accepted %f samples', n_test / n_samples))
+        print(string.format('Accepted %f %% of samples for test', n_test / n_samples * 100))
         -- END DIFF FOUR
 
         -- DIFF FIVE
@@ -639,6 +645,7 @@ function trainModelFilterBoost(weak_model, loss)
 
         -- DIFF SIX
         -- Compute edge of the weak_model and add to boosted model
+        -- (outputs are from weak model, see above)
         local edge = estimateEdge(outputs, test_labels, n_test, episode_length)
         print(string.format("Pseudoloss = %f", (edge - 0.5) * -1))
 
@@ -648,7 +655,7 @@ function trainModelFilterBoost(weak_model, loss)
         else
             local alpha = 0.5 * math.log( (0.5 + edge) / (0.5 - edge) )
             local toAdd = weak_model:clone()
-            model:addModel(weak_model. alpha)
+            model:addModel(weak_model, alpha)
         end
         -- END DIFF SIX
 
@@ -713,7 +720,7 @@ if from_cmd_line then
     cmd:option('--learningrate', 0.1, 'Learning rate used')
     cmd:option('--gpu', 0, 'Use GPU or not')
     cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note this will clobber the model type (but will not clobber anything else)")
-    cpd:option('--filboost', 0, 'Use FilterBoost or not')
+    cmd:option('--filboost', 0, 'Use FilterBoost or not')
     opt = cmd:parse(arg or {})
 
     CUDA = (opt.gpu ~= 0)
