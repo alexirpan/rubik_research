@@ -139,7 +139,7 @@ function nextDataset(model, target_error, confidence, n_episodes, episode_length
 end
 
 
-function estimateEdge(model, episodes, labels)
+function estimateEdge(model, episodes, labels, episode_length)
     -- Following recommended implementation details, the number
     -- of samples used each round is fixed instead of adaptive. So,
     -- we can have this method take the dataset as the argument directly
@@ -148,4 +148,29 @@ function estimateEdge(model, episodes, labels)
     -- Labels: episodes
     -- Since we're not interested in running updates we can just run
     -- the whole batch
+    local n_episodes = labels:size(1)
+    local seqIndices = torch.LongTensor():range(
+        1, 1 + (n_episodes-1) * episode_length, episode_length
+    )
+    local inputs = {}
+    for step = 1, episode_length do
+        inputs[step] = episodes:index(1, seqIndices)
+        seqIndices = seqIndices + 1
+    end
+    model:forget() -- forget past test runs
+    local outputs = model:forward(inputs)
+    -- (seqlen, n_episodes, N_MOVES)
+    -- Exponentiate outputs
+    for step = 1, episode_length do
+        outputs[step] = outputs[step]:exp()
+    end
+    -- Rearrange back into output for the episodes
+    local episode_outputs = {}
+    for ep = 1, n_episodes do
+        episode_outputs[ep] = {}
+        for step = 1, episode_length do
+            episode_outputs[ep][step] = outputs[step][ep]
+        end
+    end
+    return 0.5 * pseudoloss(episode_outputs, labels)
 end
