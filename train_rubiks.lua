@@ -713,6 +713,7 @@ if from_cmd_line then
     cmd:option('--learningrate', 0.1, 'Learning rate used')
     cmd:option('--gpu', 0, 'Use GPU or not')
     cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note this will clobber the model type (but will not clobber anything else)")
+    cpd:option('--filboost', 0, 'Use FilterBoost or not')
     opt = cmd:parse(arg or {})
 
     CUDA = (opt.gpu ~= 0)
@@ -735,7 +736,8 @@ if from_cmd_line then
         episode_length = opt.epslen,
         saved_to = opt.savedir,
         model_type = opt.type,
-        using_gpu = CUDA
+        using_gpu = CUDA,
+        filterboost = (opt.filboost ~= 0)
     }
     if opt.model ~= NOMODEL then
         print('Loading a previously trained model')
@@ -788,7 +790,11 @@ if from_cmd_line then
     timer = torch.Timer()
 
     if model ~= nil then
-        trainModel(model, loss)
+        if hyperparams.filterboost then
+            trainModelFilterBoost(model, loss)
+        else
+            trainModel(model, loss)
+        end
     end
 
     seconds = timer:time().real
