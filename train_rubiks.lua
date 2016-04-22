@@ -2,6 +2,7 @@ require 'rnn'
 require 'rubiks'
 require 'rubiks_utils'
 
+require 'adafilter'
 require 'averager'
 require 'filter'
 
@@ -456,10 +457,10 @@ end
 
 
 -- It's happening.
--- The dreaded copy-paste
+-- The dreaded method that is completely modified in another branch
 -- One day, this will be less awful. But not today
 -- Key differences should be highlighted by the comments
-function trainModelFilterBoost(weak_model, loss)
+function trainModelAdaBoost(weak_model, loss)
     -- In this method, "model" is the weak learner
     -- It will be copied to be used in the final booster
     local timer = torch.Timer()
@@ -468,8 +469,6 @@ function trainModelFilterBoost(weak_model, loss)
     -- DIFF ONE
     -- More hyperparameters, define a new model
     hyperparams.max_models = 10
-    hyperparams.target_error = 0.0001  -- pseudoloss approaches this
-    hyperparams.confidence = 0.0001  -- with probability at most 1 - this
     -- Resave the hyperparams
     torch.save(opt.savedir .. '/hyperparams', hyperparams, 'ascii')
     local model = nn.Averager({}, 0, hyperparams.max_models)
@@ -495,6 +494,7 @@ function trainModelFilterBoost(weak_model, loss)
     trainCsv = torch.DiskFile(hyperparams.saved_to .. '/trainingdata.csv', 'rw')
     trainCsv:seekEnd()
     -- DIFF 1.5
+    -- TODO rename to Ada
     -- Special CSV writing for FilterBoost
     if trainCsv:position() == 1 then
         -- writes header only if file is initially empty
@@ -504,38 +504,21 @@ function trainModelFilterBoost(weak_model, loss)
         timeOffset = lastTimeFromCsv(trainCsv)
     end
     -- END DIFF 1.5
+    
+    -- DIFF 1.75
+    -- It makes most sense to place dataset regeneration at the end of each epoch
+    -- So, sample the data initially here
+    local train, train_labels = generateEpisodes(n_train)
+    train:resize(n_train * episode_length,
+                 N_STICKERS * N_COLORS)
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
         print('Creating data')
         local dataTimer = torch.Timer()
 
-        -- DIFF TWO
-        -- Generate training data with the filter method
-        local conf_t = hyperparams.confidence / (3 * epoch * (epoch + 1))
-        local train, train_labels, n_samples = filteredDataset(
-            model,
-            hyperparams.target_error,
-            conf_t,
-            n_train,
-            episode_length
-        )
-        if train == nil then
-            --terminate
-            print('Failed to generate samples, stopping...')
-            --TODO FILL ME OUT
-            --(As in, verify everything we need to output is outputted)
-            return
-        end
-        seconds = dataTimer:time().real
-        minutes = math.floor(seconds / 60)
-        seconds = seconds - 60 * minutes
-        print(string.format('Spent %d minutes %f seconds creating training data', minutes, seconds))
-        print(string.format('Accepted %f %% of samples for train', n_train / n_samples * 100))
-        -- END DIFF TWO
-
         local err, correct = 0, 0
-
+        local allOutputs = torch.Tensor(n_traib * episode_length, N_MOVES):zero()
         -- DIFF THREE
         -- Changing all of this code to use weak model instead
         -- go through batches in random order

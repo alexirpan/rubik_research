@@ -1,4 +1,7 @@
 require 'rubiks'
+-- Code that implements the filtering part of FilterBoost
+-- Handles sampling a new distribution, computing pseudoloss, etc.
+-- This is deprecated in favor of AdaBoost, leaving around for posterity
 
 
 function _qprime(prob_output, right_label, wrong_label)
