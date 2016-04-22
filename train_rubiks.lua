@@ -461,6 +461,7 @@ end
 -- One day, this will be less awful. But not today
 -- Key differences should be highlighted by the comments
 function trainModelAdaBoost(weak_model, loss)
+    assert(hyperparams.batchSize == 1, "AdaBoost requires batch size 1")
     -- In this method, "model" is the weak learner
     -- It will be copied to be used in the final booster
     local timer = torch.Timer()
@@ -511,6 +512,15 @@ function trainModelAdaBoost(weak_model, loss)
     local train, train_labels = generateEpisodes(n_train)
     train:resize(n_train * episode_length,
                  N_STICKERS * N_COLORS)
+    local test, test_labels = generateEpisodes(n_test)
+    test:resize(n_test * episode_length,
+                N_STICKERS * N_COLORS)
+    local train_weights = torch.ones(n_train)
+    local test_weights = torch.ones(n_test)
+    if CUDA then
+        train_weights = train_weights:cuda()
+        test_weights = test_weights:cuda()
+    end
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
@@ -518,13 +528,32 @@ function trainModelAdaBoost(weak_model, loss)
         local dataTimer = torch.Timer()
 
         local err, correct = 0, 0
-        local allOutputs = torch.Tensor(n_traib * episode_length, N_MOVES):zero()
+        -- Will reorder later, this makes it easier to collect
+        local allTrainOutputs = torch.Tensor(episode_length, n_train, N_MOVES):zero()
+        if CUDA then
+            allTrainOutputs = allTrainOutputs:cuda()
+        end
         -- DIFF THREE
-        -- Changing all of this code to use weak model instead
+        -- Changing all of this code to use weak model instead, and saving all
+        -- model outputs for later computation
         -- go through batches in random order
         local nBatches = n_train / batchSize
         local perm = torch.randperm(nBatches)
 
+        -- ANOTHER BIG DIFF HERE
+        -- We want to weight each episode differently.
+        -- However, we're running in batch, and each episode in a batch may have
+        -- different weight.
+        -- The default ClassNLLCriterion lets you reweight classes for computing
+        -- loss, but not reweight specific examples.
+        --
+        -- Doing this properly will require hacking something in both the
+        -- SequencerCriterion and ClassNLLCriterion, which is more engineering
+        -- than I have time for.
+        --
+        -- Instead, we enforce batchSize 1. When this is true, the scaling is
+        -- constant over the batch
+        --
         -- n_train is the number of sequences
         -- we do (batchSize) sequences at once
         for j = 1, nBatches do
@@ -550,7 +579,8 @@ function trainModelAdaBoost(weak_model, loss)
             weak_model:forget()  -- forget past time steps
 
             local outputs = weak_model:forward(inputs)
-            err = err + loss:forward(outputs, targets)
+            -- Here is where we use assumption that j is index into episode number
+            err = err + train_weights[j] * loss:forward(outputs, targets)
 
             -- reset seqIndices to check accuracy
             seqIndices = torch.LongTensor():range(
@@ -563,7 +593,12 @@ function trainModelAdaBoost(weak_model, loss)
                 _, predicted = outputs[step]:max(2)
                 predicted:resize(batchSize)
                 trueVal = targets[step]
-                correct = correct + predicted:eq(trueVal):sum()
+                -- batchSize 1 assumption also used here
+                -- (Need weighted accuracy for both error and classifcation)
+                correct = correct + train_weights[j] * predicted:eq(trueVal):sum()
+                -- Copy outputs into allTrainOutputs
+                local batchStart = (ind - 1) * batchSize
+                allTrainOutputs[{step, {batchStart + 1, batchStart + batchSize}}] = outputs[step]
             end
 
             -- backward sequence (backprop through time)
@@ -571,8 +606,11 @@ function trainModelAdaBoost(weak_model, loss)
             local gradInputs = weak_model:backward(inputs, gradOutputs)
 
             -- and update
-            weak_model:updateParameters(learningRate)
+            -- batchSize 1 assumption also used here
+            weak_model:updateParameters(train_weights[j] * learningRate)
         end
+        allTrainOutputs = allTrainOutputs:transpose(1, 2)
+        allTrainOutputs = allTrainOutputs:resize(n_train * episode_length, N_MOVES)
         -- END DIFF THREE
         -- for averages, we need to account for there being n_episodes * episode_length samples total
         -- Loss already averages over batch size, so we only need to divide by
@@ -589,8 +627,7 @@ function trainModelAdaBoost(weak_model, loss)
         ))
 
         -- DIFF FOUR
-        -- Use Filter to get test set too
-        -- Filter using the boosted model
+        -- Evaluate error with respect to a weighted test set
         local dataTimer = torch.Timer()
         local test, test_labels, n_samples = filteredDataset(
             model,
@@ -608,42 +645,37 @@ function trainModelAdaBoost(weak_model, loss)
 
         -- DIFF FIVE
         -- test error of JUST THE WEAK MODEL
-        -- Since we're not interested in updating the model, we can run one
-        -- huge batch
+        -- We unfortunately do need to run this one sample at a time.
         local test_err, test_correct = 0, 0
-        -- Construct table from testset
-        local seqIndices = torch.LongTensor():range(
-            1, 1 + (n_test-1) * episode_length, episode_length
-        )
-        local inputs = {}
-        for step = 1, episode_length do
-            inputs[step] = test:index(1, seqIndices)
-            seqIndices = seqIndices + 1
+        local allTestOutputs = torch.Tensor(episode_length, n_test, N_MOVES):zero()
+        if CUDA then
+            allTestOutputs = allTestOutputs:cuda()
         end
-        weak_model:forget() -- forget past test runs
-        local outputs = weak_model:forward(inputs)
-        local seqIndices = torch.LongTensor():range(
-            1, 1 + (n_test-1) * episode_length, episode_length
-        )
-        local targets = {}
-        for step = 1, episode_length do
-            targets[step] = test_labels:index(1, seqIndices)
-            seqIndices = seqIndices + 1
-        end
-        test_err = loss:forward(outputs, targets)
 
-        -- outputs is a table of seqlen entries, each of size
-        -- (batchsize, N_MOVES), and here batchsize = n_test
-        for step = 1, episode_length do
-            _, best = outputs[step]:max(2)
-            best:resize(n_test)
-            trueVal = targets[step]
-            test_correct = test_correct + best:eq(trueVal):sum()
+        for i = 1, n_test do
+            local start = (i-1) * episode_length
+            local inputs = {}
+            local targets = {}
+            for step = 1, episode_length do
+                inputs[step] = test[start+step]
+                targets[step] = test_labels[start + step]
+            end
+            weak_model:forget() -- forget past test runs
+            local outputs = weak_model:forward(inputs)
+            test_err = test_err + test_weights[i] * loss:forward(outputs, targets)
+
+            -- outputs is a table of seqlen entries, each of size
+            -- (batchsize, N_MOVES), and here batchsize = n_test
+            for step = 1, episode_length do
+                allTestOutputs[{step, i}] = outputs[step]
+                _, best = outputs[step]:max(1)
+                trueVal = targets[step]
+                if best[1] == trueVal then
+                    test_correct = test_correct + test_weights[i]
+                end
+            end
         end
-        -- again account for episode length
-        -- TODO verify that the loss is automatically averaged over the batch size
-        -- (This appears to be the case but I can't find it in the docs)
-        test_err = test_err / episode_length
+        test_err = test_err / (n_test * episode_length)
         test_correct = test_correct / (n_test * episode_length) * 100
         print(string.format("For this round, test loss = %f, test accuracy = %f %%", test_err, test_correct))
         -- END DIFF FIVE
@@ -767,7 +799,7 @@ if from_cmd_line then
     cmd:option('--learningrate', 0.1, 'Learning rate used')
     cmd:option('--gpu', 0, 'Use GPU or not')
     cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note this will clobber the model type (but will not clobber anything else)")
-    cmd:option('--filboost', 0, 'Use FilterBoost or not')
+    cmd:option('--adaboost', 0, 'Use AdaBoost or not')
     cmd:option('--nboosttest', 5000, 'Samples to use for testing boosted model. Ignored unless FilterBoost is used')
     opt = cmd:parse(arg or {})
 
@@ -792,9 +824,13 @@ if from_cmd_line then
         saved_to = opt.savedir,
         model_type = opt.type,
         using_gpu = CUDA,
-        filterboost = (opt.filboost ~= 0),
+        adaboost = (opt.adaboost ~= 0),
         n_boost_test = opt.nboosttest
     }
+    if hyperparams.adaboost then
+        assert(hyperparams.batchSize == 1, 'AdaBoost only supports batch size 1 for now')
+    end
+
     if opt.model ~= NOMODEL then
         print('Loading a previously trained model')
         print('Loading from ' .. opt.model .. ' ...')
