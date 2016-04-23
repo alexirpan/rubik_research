@@ -523,7 +523,7 @@ function trainModelAdaBoost(weak_model, loss)
         -- fix some of that
         train_weights = train_weights * n_train / train_weights:sum()
         if math.abs(train_weights:sum() - n_train) < 0.001 then
-            print('!! Expected weights to sum to n_train !!')
+            print(string.format('!! Expected weights to sum to %d !!', n_train))
             print('Actually sum to', train_weights:sum())
         end
         local err, correct = 0, 0
