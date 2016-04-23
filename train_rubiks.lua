@@ -517,6 +517,7 @@ function trainModelAdaBoost(weak_model, loss)
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
+        assert(math.abs(train_weights:sum() - n_train) < 0.001, 'Expect weights to sum to n_train')
         local err, correct = 0, 0
         -- Will reorder later, this makes it easier to collect
         local allTrainOutputs = torch.Tensor(episode_length, n_train, N_MOVES):zero()
@@ -688,10 +689,15 @@ function trainModelAdaBoost(weak_model, loss)
 
         boost_correct = boost_correct / (n_boost_eps * episode_length) * 100
         print(string.format("Boosted test accuracy = %f %%", boost_correct))
+
+        train = next_train
+        train_labels = next_train_labels
+        train_weights = next_train_weights
+
         seconds = boostTimer:time().real
         boost_time_min = seconds / 60
         seconds = seconds - 60 * math.floor(boost_time_min)
-        print(string.format('%d minutes %f seconds refilling data', minutes, seconds))
+        print(string.format('%d minutes %f seconds refilling data and computing boost accuracy', minutes, seconds))
         -- END DIFF SEVEN
 
         -- save epoch data
