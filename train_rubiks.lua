@@ -4,7 +4,6 @@ require 'rubiks_utils'
 
 require 'adafilter'
 require 'averager'
-require 'filter'
 
 
 function _setupHyperparams()
@@ -218,7 +217,7 @@ end
 
 
 function csvAdaLine(save_info)
-    return string.format('%d,%f,%f,%f,%f,%f,%f,%f\n',
+    return string.format('%d,%f,%f,%f,%f,%f\n',
         save_info.epoch,
         save_info.train_err,
         save_info.train_acc,
@@ -621,34 +620,42 @@ function trainModelAdaBoost(weak_model, loss)
         -- Compute edge of the weak_model and add to boosted model
         -- (outputs are from weak model, see above)
         allTrainOutputs = allTrainOutputs:exp()  -- Expects probabilities, not log probs
+
         local plosses = pseudoloss(allTrainOutputs, train_labels, n_train, episode_length)
-        local weighted_losses = plosses * weights
-        local avg_weighted_loss = weighted_losses:sum() / n_train
+        local weighted_losses = plosses * train_weights
+        -- !! Torch multiplication of two 1D tensors does dot product !!
+        local avg_weighted_loss = plosses * train_weights / n_train
 
         print(string.format("Pseudoloss over D_%d = %f", epoch, avg_weighted_loss))
 
         if avg_weighted_loss > 0.5 then
             print("!!! WORSE THAN RANDOM GUESSING !!!")
             print("Not adding classifier this round, trying again...")
+            local update_weights = false
         else
             local alpha = math.log( (1 - avg_weighted_loss) / avg_weighted_loss )
             local toAdd = weak_model:clone()
             model:addModel(weak_model, alpha)
+            local update_weights = true
         end
         -- END DIFF SIX
 
         -- DIFF SEVEN
         -- Update datasets for the next epoch
-        train_weights = nextWeights(train_weights, plosses, alpha, n_train)
-        -- Keep each sample with uniform probability
         local next_train = torch.Tensor(n_train * episode_length, N_STICKERS * N_COLORS):zero()
-        local next_train_labels = torch.Tensor(n_train * episode_length, N_MOVES):zero()
+        local next_train_labels = torch.LongTensor(n_train * episode_length):zero()
         local next_train_weights = torch.Tensor(n_train):zero()
         if CUDA then
             next_train = next_train:cuda()
             next_train_labels = next_train_labels:cuda()
             next_train_weights = next_train_weights:cuda()
         end
+
+        if update_weights then
+            train_weights = nextWeights(train_weights, plosses, alpha, n_train)
+        end
+
+        -- Keep each sample with uniform probability
         local j = 1
         for i = 1, n_train do
             if torch.uniform() < hyperparams.keepprob then
@@ -657,7 +664,7 @@ function trainModelAdaBoost(weak_model, loss)
                 local start_next = (j-1) * episode_length
                 next_train[{ {start_next+1, start_next+episode_length} }] = train[{ {start_old+1, start_old+episode_length} }]
                 next_train_labels[{ {start_next+1, start_next+episode_length} }] = train_labels[{ {start_old+1, start_old+episode_length} }]
-                next_train_weights[{ {start_next+1, start_next+episode_length} }] = train_weights[{ {start_old+1, start_old+episode_length} }]
+                next_train_weights[j] = train_weights[i]
                 j = j + 1
             end
         end
@@ -666,13 +673,14 @@ function trainModelAdaBoost(weak_model, loss)
         -- DIFF EIGHT
         -- Fill in the gaps, using them to evaluate the power of the boosted model
         local boostTimer = torch.Timer()
-
-        local n_boost_eps = n_train - j
+        local n_boost_eps = n_train - (j - 1)
         local weight_to_replace = n_train - next_train_weights:sum()
 
         local boost_eps, boost_labels = generateEpisodes(n_boost_eps)
         boost_eps:resize(n_boost_eps * episode_length, N_STICKERS * N_COLORS)
 
+        -- Always happens even if no weight update (will just use most recent
+        -- boosted classifier)
         local boost_weights, boost_correct = computeBoostedWeightsAndAcc(
             model,
             boost_eps,
@@ -685,7 +693,7 @@ function trainModelAdaBoost(weak_model, loss)
         local start = (j-1) * episode_length
         next_train[{ {start+1, n_train * episode_length} }] = boost_eps
         next_train_labels[{ {start+1, n_train * episode_length} }] = boost_labels
-        next_train_weights[{ {start+1, n_train * episode_length} }] = boost_weights
+        next_train_weights[{ {j, n_train} }] = boost_weights
 
         boost_correct = boost_correct / (n_boost_eps * episode_length) * 100
         print(string.format("Boosted test accuracy = %f %%", boost_correct))
@@ -697,7 +705,7 @@ function trainModelAdaBoost(weak_model, loss)
         seconds = boostTimer:time().real
         boost_time_min = seconds / 60
         seconds = seconds - 60 * math.floor(boost_time_min)
-        print(string.format('%d minutes %f seconds refilling data and computing boost accuracy', minutes, seconds))
+        print(string.format('%d minutes %f seconds refilling data and computing boost accuracy', math.floor(boost_time_min), seconds))
         -- END DIFF SEVEN
 
         -- save epoch data
@@ -727,8 +735,8 @@ function trainModelAdaBoost(weak_model, loss)
         }
         trainCsv:writeString(csvAdaLine(saved))
 
-        if saved.test_acc > best_acc then
-            best_acc = saved.test_acc
+        if saved.boost_acc > best_acc then
+            best_acc = saved.boost_acc
             filename = saveTo .. '/rubiks_best'
             torch.save(filename, saved, 'ascii')
         end
@@ -847,8 +855,8 @@ if from_cmd_line then
     timer = torch.Timer()
 
     if model ~= nil then
-        if hyperparams.filterboost then
-            trainModelFilterBoost(model, loss)
+        if hyperparams.adaboost then
+            trainModelAdaBoost(model, loss)
         else
             trainModel(model, loss)
         end

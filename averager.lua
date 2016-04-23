@@ -90,13 +90,27 @@ function Averager:updateOutput(input)
     if self.n_models == 0 then
         -- We need to replicate Sequencer behavior
         local n_out = #input
+        local output = torch.Tensor()
+
+        if input[1]:dim() == 2 then
+            local batch = input[1]:size()[1]
+            output = torch.ones(batch, N_MOVES)
+            output = output / N_MOVES
+        else
+            output = torch.ones(N_MOVES)
+            output = output / N_MOVES
+        end
+        if CUDA then
+            output = output:cuda()
+        end
+
         local out = {}
         for i = 1, n_out do
-            -- TODO don't use global number of classes here
-            out[i] = torch.ones(N_MOVES) / N_MOVES
+            out[i] = output:clone()
         end
         return out
     end
+
     local model_outputs = {}
     for i=1, self.n_models do
         model_outputs[i] = self.models[i]:forward(input)
@@ -107,15 +121,20 @@ function Averager:updateOutput(input)
     local epslen = #input
     local episode_totals = {}
     for step = 1, epslen do
-        episode_totals[step] = torch.Tensor(N_MOVES):zero()
+        local total = torch.Tensor(model_outputs[1][step]:size()):zero()
         if CUDA then
-            episode_totals[step] = episode_totals[step]:cuda()
+            total = total:cuda()
         end
+
         for i=1, self.n_models do
             -- output is log prob, copy to keep model output intact
-            episode_totals[step] = episode_totals[step] + model_outputs[i][step]:clone():exp() * self.weights[i]
+            local step_output = model_outputs[i][step]:clone():exp()
+            print(step_output)
+            -- weight by classifier weight
+            step_output = step_output * self.weights[i]
+            total = total + step_output
         end
-        episode_totals[step] = episode_totals[step] / self.weights:sum()
+        episode_totals[step] = total / self.weights:sum()
     end
     return episode_totals
 end

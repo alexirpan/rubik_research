@@ -16,9 +16,9 @@ function _ploss(prob_output, right_label)
     local total = 1
     for class = 1, N_MOVES do
         if class == right_label then
-            total = total - prob_output[right_label]
+            total = total - prob_output[class]
         else
-            total = total + prob_output[wrong_label] / (N_MOVES - 1)
+            total = total + prob_output[class] / (N_MOVES - 1)
         end
     end
     return 0.5 * total
@@ -53,7 +53,7 @@ end
 function nextWeights(weights, losses, alpha, n_episodes)
     -- Next weight prop to D_t(i) * exp(alpha_t * pseudoloss(i))
     local factor = losses * alpha
-    local next_w = weights * factor:exp()
+    local next_w = weights:cmul(factor:exp())
     -- Normalize such that there are n_episodes eps total
     return next_w * n_episodes / next_w:sum()
 end
@@ -74,7 +74,7 @@ function computeBoostedWeightsAndAcc(model, episodes, labels, n_episodes, episod
     )
     local inputs = {}
     for step = 1, episode_length do
-        inputs[step] = episodes:select(seqIndices)
+        inputs[step] = episodes:index(1, seqIndices)
         seqIndices = seqIndices + 1
     end
     model:forget()
