@@ -519,7 +519,7 @@ function trainModelAdaBoost(weak_model, loss)
         assert(math.abs(train_weights:sum() - n_train) < 0.001, 'Expect weights to sum to n_train')
         local err, correct = 0, 0
         -- Will reorder later, this makes it easier to collect
-        local allTrainOutputs = torch.Tensor(episode_length, n_train, N_MOVES):zero()
+        local allTrainOutputs = torch.Tensor(n_train * episode_length, N_MOVES):zero()
         if CUDA then
             allTrainOutputs = allTrainOutputs:cuda()
         end
@@ -569,8 +569,8 @@ function trainModelAdaBoost(weak_model, loss)
             weak_model:forget()  -- forget past time steps
 
             local outputs = weak_model:forward(inputs)
-            -- Here is where we use assumption that j is index into episode number
-            err = err + train_weights[j] * loss:forward(outputs, targets)
+            -- Here is where we use assumption that ind is index into episode number
+            err = err + train_weights[ind] * loss:forward(outputs, targets)
 
             -- reset seqIndices to check accuracy
             seqIndices = torch.LongTensor():range(
@@ -585,10 +585,13 @@ function trainModelAdaBoost(weak_model, loss)
                 trueVal = targets[step]
                 -- batchSize 1 assumption also used here
                 -- (Need weighted accuracy for both error and classifcation)
-                correct = correct + train_weights[j] * predicted:eq(trueVal):sum()
+                if predicted[1] == trueVal[1] then
+                    correct = correct + train_weights[ind]
+                end
                 -- Copy outputs into allTrainOutputs
-                local batchStart = (ind - 1) * batchSize
-                allTrainOutputs[{step, {batchStart + 1, batchStart + batchSize}}] = outputs[step]
+                local batchStart = (ind - 1) * batchSize * episode_length
+                -- TODO fix this when batchSize > 1
+                allTrainOutputs[batchStart + step] = outputs[step]
             end
 
             -- backward sequence (backprop through time)
@@ -597,10 +600,8 @@ function trainModelAdaBoost(weak_model, loss)
 
             -- and update
             -- batchSize 1 assumption also used here
-            weak_model:updateParameters(train_weights[j] * learningRate)
+            weak_model:updateParameters(train_weights[ind] * learningRate)
         end
-        allTrainOutputs = allTrainOutputs:transpose(1, 2)
-        allTrainOutputs = allTrainOutputs:resize(n_train * episode_length, N_MOVES)
         -- END DIFF THREE
         -- for averages, we need to account for there being n_episodes * episode_length samples total
         -- Loss already averages over batch size, so we only need to divide by

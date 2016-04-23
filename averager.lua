@@ -129,7 +129,6 @@ function Averager:updateOutput(input)
         for i=1, self.n_models do
             -- output is log prob, copy to keep model output intact
             local step_output = model_outputs[i][step]:clone():exp()
-            print(step_output)
             -- weight by classifier weight
             step_output = step_output * self.weights[i]
             total = total + step_output
