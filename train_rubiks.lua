@@ -212,18 +212,16 @@ function csvLine(save_info)
 end
 
 
-function csvFilterHeader()
-    return 'epoch,train_err,train_acc,test_err,test_acc,boost_acc,boost_time,total_time\n'
+function csvAdaHeader()
+    return 'epoch,train_err,train_acc,boost_acc,boost_time,total_time\n'
 end
 
 
-function csvFilterLine(save_info)
+function csvAdaLine(save_info)
     return string.format('%d,%f,%f,%f,%f,%f,%f,%f\n',
         save_info.epoch,
         save_info.train_err,
         save_info.train_acc,
-        save_info.test_err,
-        save_info.test_acc,
         save_info.boost_acc,
         save_info.boost_time,
         save_info.total_time
@@ -495,38 +493,30 @@ function trainModelAdaBoost(weak_model, loss)
     trainCsv = torch.DiskFile(hyperparams.saved_to .. '/trainingdata.csv', 'rw')
     trainCsv:seekEnd()
     -- DIFF 1.5
-    -- TODO rename to Ada
-    -- Special CSV writing for FilterBoost
+    -- Special CSV writing for AdaBoost
     if trainCsv:position() == 1 then
         -- writes header only if file is initially empty
-        trainCsv:writeString(csvFilterHeader())
+        trainCsv:writeString(csvAdaHeader())
     else
         -- find time offset
         timeOffset = lastTimeFromCsv(trainCsv)
     end
     -- END DIFF 1.5
-    
+
     -- DIFF 1.75
     -- It makes most sense to place dataset regeneration at the end of each epoch
     -- So, sample the data initially here
+    print('Initializing dataset')
     local train, train_labels = generateEpisodes(n_train)
     train:resize(n_train * episode_length,
                  N_STICKERS * N_COLORS)
-    local test, test_labels = generateEpisodes(n_test)
-    test:resize(n_test * episode_length,
-                N_STICKERS * N_COLORS)
     local train_weights = torch.ones(n_train)
-    local test_weights = torch.ones(n_test)
     if CUDA then
         train_weights = train_weights:cuda()
-        test_weights = test_weights:cuda()
     end
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
-        print('Creating data')
-        local dataTimer = torch.Timer()
-
         local err, correct = 0, 0
         -- Will reorder later, this makes it easier to collect
         local allTrainOutputs = torch.Tensor(episode_length, n_train, N_MOVES):zero()
@@ -626,69 +616,15 @@ function trainModelAdaBoost(weak_model, loss)
             correct
         ))
 
-        -- DIFF FOUR
-        -- Evaluate error with respect to a weighted test set
-        local dataTimer = torch.Timer()
-        local test, test_labels, n_samples = filteredDataset(
-            model,
-            hyperparams.target_error,
-            conf_t,
-            n_test,
-            episode_length
-        )
-        seconds = dataTimer:time().real
-        minutes = math.floor(seconds / 60)
-        seconds = seconds - 60 * minutes
-        print(string.format('Spent %d minutes %f seconds creating test data', minutes, seconds))
-        print(string.format('Accepted %f %% of samples for test', n_test / n_samples * 100))
-        -- END DIFF FOUR
-
-        -- DIFF FIVE
-        -- test error of JUST THE WEAK MODEL
-        -- We unfortunately do need to run this one sample at a time.
-        local test_err, test_correct = 0, 0
-        local allTestOutputs = torch.Tensor(episode_length, n_test, N_MOVES):zero()
-        if CUDA then
-            allTestOutputs = allTestOutputs:cuda()
-        end
-
-        for i = 1, n_test do
-            local start = (i-1) * episode_length
-            local inputs = {}
-            local targets = {}
-            for step = 1, episode_length do
-                inputs[step] = test[start+step]
-                targets[step] = test_labels[start + step]
-            end
-            weak_model:forget() -- forget past test runs
-            local outputs = weak_model:forward(inputs)
-            test_err = test_err + test_weights[i] * loss:forward(outputs, targets)
-
-            -- outputs is a table of seqlen entries, each of size
-            -- (batchsize, N_MOVES), and here batchsize = n_test
-            for step = 1, episode_length do
-                allTestOutputs[{step, i}] = outputs[step]
-                _, best = outputs[step]:max(1)
-                trueVal = targets[step]
-                if best[1] == trueVal then
-                    test_correct = test_correct + test_weights[i]
-                end
-            end
-        end
-        test_err = test_err / (n_test * episode_length)
-        test_correct = test_correct / (n_test * episode_length) * 100
-        print(string.format("For this round, test loss = %f, test accuracy = %f %%", test_err, test_correct))
-        -- END DIFF FIVE
-
         -- DIFF SIX
         -- Compute edge of the weak_model and add to boosted model
         -- (outputs are from weak model, see above)
         allTrainOutputs = allTrainOutputs:exp()  -- Expects probabilities, not log probs
         local plosses = pseudoloss(allTrainOutputs, train_labels, n_train, episode_length)
         local weighted_losses = plosses * weights
-        local avg_weighted_loss = weighted_losses:sum() / weights:sum()
+        local avg_weighted_loss = weighted_losses:sum() / n_train
 
-        print(string.format("Pseudoloss over D_t = %f", avg_weighted_loss))
+        print(string.format("Pseudoloss over D_%d = %f", epoch, avg_weighted_loss))
 
         if avg_weighted_loss > 0.5 then
             print("!!! WORSE THAN RANDOM GUESSING !!!")
@@ -703,7 +639,7 @@ function trainModelAdaBoost(weak_model, loss)
         -- DIFF SEVEN
         -- Update datasets for the next epoch
         train_weights = nextWeights(train_weights, plosses, alpha, n_train)
-        -- Resample data w.p.
+        -- Keep each sample with uniform probability
         local next_train = torch.Tensor(n_train * episode_length, N_STICKERS * N_COLORS):zero()
         local next_train_labels = torch.Tensor(n_train * episode_length, N_MOVES):zero()
         local next_train_weights = torch.Tensor(n_train):zero()
@@ -716,10 +652,11 @@ function trainModelAdaBoost(weak_model, loss)
         for i = 1, n_train do
             if torch.uniform() < hyperparams.keepprob then
                 -- Add the sample
-                local start = (j-1) * episode_length
-                next_train[{ {start+1, start+episode_length} }] = train[{ {start+1, start+episode_length} }]
-                next_train_labels[{ {start+1, start+episode_length} }] = train_labels[{ {start+1, start+episode_length} }]
-                next_train_weights[{ {start+1, start+episode_length} }] = train_weights[{ {start+1, start+episode_length} }]
+                local start_old = (i-1) * episode_length
+                local start_next = (j-1) * episode_length
+                next_train[{ {start_next+1, start_next+episode_length} }] = train[{ {start_old+1, start_old+episode_length} }]
+                next_train_labels[{ {start_next+1, start_next+episode_length} }] = train_labels[{ {start_old+1, start_old+episode_length} }]
+                next_train_weights[{ {start_next+1, start_next+episode_length} }] = train_weights[{ {start_old+1, start_old+episode_length} }]
                 j = j + 1
             end
         end
@@ -776,15 +713,13 @@ function trainModelAdaBoost(weak_model, loss)
             model = model,
             train_err = err,
             train_acc = correct,
-            test_err = test_err,
-            test_acc = test_correct,
             boost_acc = boost_correct,
             epoch = epoch,
             total_time = total_time_min + timeOffset,
             boost_time = boost_time_min,
             hyperparams = hyperparams
         }
-        trainCsv:writeString(csvFilterLine(saved))
+        trainCsv:writeString(csvAdaLine(saved))
 
         if saved.test_acc > best_acc then
             best_acc = saved.test_acc
@@ -849,7 +784,7 @@ if from_cmd_line then
         model_type = opt.type,
         using_gpu = CUDA,
         adaboost = (opt.adaboost ~= 0),
-        n_boost_test = opt.nboosttest
+        keepprob = opt.keepprob
     }
     if hyperparams.adaboost then
         assert(hyperparams.batchSize == 1, 'AdaBoost only supports batch size 1 for now')

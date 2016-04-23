@@ -34,10 +34,11 @@ function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
         losses = losses:cuda()
     end
 
-    -- prob_outputs is a table here
     for ep = 1, n_episodes do
+        -- Pull out episode
         local start = (ep - 1) * episode_length
         local episode = episode_outputs[{ {start+1, start+episode_length} }]
+        -- Feed samples to get average pseudoloss
         for step = 1, episode_length do
             local ind = start + step
             local correct = labels[ind]
@@ -46,7 +47,6 @@ function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
     end
     -- Norm over episode length
     return losses / episode_length
-    return losses
 end
 
 
@@ -74,7 +74,7 @@ function computeBoostedWeightsAndAcc(model, episodes, labels, n_episodes, episod
     )
     local inputs = {}
     for step = 1, episode_length do
-        inputs[step] = episodes:select()
+        inputs[step] = episodes:select(seqIndices)
         seqIndices = seqIndices + 1
     end
     model:forget()
@@ -83,6 +83,7 @@ function computeBoostedWeightsAndAcc(model, episodes, labels, n_episodes, episod
     for step = 1, episode_length do
         outputs[step] = _outputs[step]
     end
+    -- (step, ep, MOVES) -> (ep, step, MOVES)
     outputs = outputs:transpose(1, 2)
     outputs = outputs:resize(n_episodes * episode_length, N_MOVES)
 
@@ -95,5 +96,5 @@ function computeBoostedWeightsAndAcc(model, episodes, labels, n_episodes, episod
     local weights = losses:exp()
     -- Normalize to amount of weight to replace
     local normed = weights * weight_to_replace / weights:sum()
-    return weights, correct
+    return normed, correct
 end
