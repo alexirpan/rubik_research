@@ -70,7 +70,7 @@ function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
     print('Average over bad', c / d)
     print('Num good', b, 'Num bad', d)
     -- Norm over episode length
-    return losses / episode_length
+    return losses / episode_length, a / b, c / d
 end
 
 

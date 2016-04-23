@@ -212,15 +212,18 @@ end
 
 
 function csvAdaHeader()
-    return 'epoch,train_err,train_acc,boost_acc,boost_time,total_time\n'
+    return 'epoch,train_err,train_acc,pseudoloss,unweighted_good_ploss,unweighted_bad_ploss,boost_acc,boost_time,total_time\n'
 end
 
 
 function csvAdaLine(save_info)
-    return string.format('%d,%f,%f,%f,%f,%f\n',
+    return string.format('%d,%f,%f,%f,%f,%f,%f,%f,%f\n',
         save_info.epoch,
         save_info.train_err,
         save_info.train_acc,
+        save_info.pseudoloss,
+        save_info.avg_unweighted_good_ploss,
+        save_info.avg_unweighted_bad_ploss,
         save_info.boost_acc,
         save_info.boost_time,
         save_info.total_time
@@ -622,7 +625,7 @@ function trainModelAdaBoost(weak_model, loss)
         -- (outputs are from weak model, see above)
         allTrainOutputs = allTrainOutputs:exp()  -- Expects probabilities, not log probs
 
-        local plosses = pseudoloss(allTrainOutputs, train_labels, n_train, episode_length)
+        local plosses, unweighted_good, unweighted_bad = pseudoloss(allTrainOutputs, train_labels, n_train, episode_length)
         local weighted_losses = plosses * train_weights
         -- !! Torch multiplication of two 1D tensors does dot product !!
         local avg_weighted_loss = plosses * train_weights / n_train
@@ -728,6 +731,9 @@ function trainModelAdaBoost(weak_model, loss)
             model = model,
             train_err = err,
             train_acc = correct,
+            pseudoloss = avg_weighted_loss,
+            avg_unweighted_good_ploss = unweighted_good,
+            avg_unweighted_bad_ploss = unweighted_bad,
             boost_acc = boost_correct,
             epoch = epoch,
             total_time = total_time_min + timeOffset,
