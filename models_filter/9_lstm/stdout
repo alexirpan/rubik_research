@@ -1,0 +1,347 @@
+Training an LSTM	
+Finished building model	
+Loaded hyperparameters	
+{
+  prev_epochs : 0
+  filterboost : true
+  seed : 987
+  n_boost_test : 5000
+  using_gpu : true
+  learningRate : 0.1
+  n_test : 10000
+  batchSize : 8
+  n_valid : 0
+  saved_to : "models_filter/9_lstm"
+  n_epochs : 40
+  hiddenSize : 100
+  episode_length : 9
+  rho : 10
+  model_type : "lstm"
+  n_train : 50000
+}
+Using episode length	9	
+Saving to	models_filter/9_lstm	
+Starting epoch	1	
+Creating data	
+100000	episodes sampled for epoch so far	
+49979	episodes accepted for dataset	
+59347	rejects in a row needed to stop	
+Spent 1 minutes 20.911173 seconds creating training data	
+Accepted 49.979508 % of samples for train	
+Epoch 1: Average training loss = 1.151292, training accuracy = 64.261778 %	
+Spent 0 minutes 15.961968 seconds creating test data	
+Accepted 50.784622 % of samples for test	
+For this round, test loss = 1.004117, test accuracy = 67.951111 %	
+Pseudoloss = 0.210349	
+Boosted test accuracy = 67.988889 %	
+0 minutes 33.614727 seconds finding boosted accuracy	
+Starting epoch	2	
+Creating data	
+100000	episodes sampled for epoch so far	
+43205	episodes accepted for dataset	
+60815	rejects in a row needed to stop	
+Spent 16 minutes 40.851212 seconds creating training data	
+Accepted 43.254840 % of samples for train	
+Epoch 2: Average training loss = 0.981068, training accuracy = 68.753333 %	
+Spent 3 minutes 23.031792 seconds creating test data	
+Accepted 43.007053 % of samples for test	
+For this round, test loss = 0.963010, test accuracy = 69.295556 %	
+Pseudoloss = 0.205623	
+Boosted test accuracy = 69.173333 %	
+3 minutes 59.399488 seconds finding boosted accuracy	
+Starting epoch	3	
+Creating data	
+100000	episodes sampled for epoch so far	
+43643	episodes accepted for dataset	
+62112	rejects in a row needed to stop	
+Spent 26 minutes 59.174292 seconds creating training data	
+Accepted 43.579441 % of samples for train	
+Epoch 3: Average training loss = 0.947354, training accuracy = 69.661778 %	
+Spent 5 minutes 29.118174 seconds creating test data	
+Accepted 42.983022 % of samples for test	
+For this round, test loss = 0.940914, test accuracy = 69.764444 %	
+Pseudoloss = 0.202765	
+Boosted test accuracy = 69.940000 %	
+5 minutes 24.572840 seconds finding boosted accuracy	
+Starting epoch	4	
+Creating data	
+100000	episodes sampled for epoch so far	
+43023	episodes accepted for dataset	
+62989	rejects in a row needed to stop	
+Spent 37 minutes 41.901672 seconds creating training data	
+Accepted 42.970093 % of samples for train	
+Epoch 4: Average training loss = 0.929666, training accuracy = 70.290222 %	
+Spent 7 minutes 32.057609 seconds creating test data	
+Accepted 43.075598 % of samples for test	
+For this round, test loss = 0.922751, test accuracy = 70.521111 %	
+Pseudoloss = 0.195346	
+Boosted test accuracy = 70.702222 %	
+7 minutes 47.363206 seconds finding boosted accuracy	
+Starting epoch	5	
+Creating data	
+100000	episodes sampled for epoch so far	
+42745	episodes accepted for dataset	
+63703	rejects in a row needed to stop	
+Spent 47 minutes 58.633119 seconds creating training data	
+Accepted 42.801623 % of samples for train	
+Epoch 5: Average training loss = 0.917669, training accuracy = 70.598667 %	
+Spent 9 minutes 37.534191 seconds creating test data	
+Accepted 42.817384 % of samples for test	
+For this round, test loss = 0.913368, test accuracy = 70.528889 %	
+Pseudoloss = 0.195063	
+Boosted test accuracy = 70.768889 %	
+9 minutes 7.555183 seconds finding boosted accuracy	
+Starting epoch	6	
+Creating data	
+100000	episodes sampled for epoch so far	
+42904	episodes accepted for dataset	
+64328	rejects in a row needed to stop	
+Spent 56 minutes 49.655306 seconds creating training data	
+Accepted 42.907406 % of samples for train	
+Epoch 6: Average training loss = 0.909733, training accuracy = 70.807556 %	
+Spent 11 minutes 31.108926 seconds creating test data	
+Accepted 42.470059 % of samples for test	
+For this round, test loss = 0.907636, test accuracy = 70.696667 %	
+Pseudoloss = 0.193618	
+Boosted test accuracy = 71.266667 %	
+11 minutes 32.410976 seconds finding boosted accuracy	
+Starting epoch	7	
+Creating data	
+100000	episodes sampled for epoch so far	
+43080	episodes accepted for dataset	
+64866	rejects in a row needed to stop	
+Spent 66 minutes 38.192601 seconds creating training data	
+Accepted 43.020745 % of samples for train	
+Epoch 7: Average training loss = 0.903380, training accuracy = 70.979111 %	
+Spent 13 minutes 15.536754 seconds creating test data	
+Accepted 43.053343 % of samples for test	
+For this round, test loss = 0.905295, test accuracy = 70.984444 %	
+Pseudoloss = 0.197190	
+Boosted test accuracy = 71.082222 %	
+13 minutes 54.277935 seconds finding boosted accuracy	
+Starting epoch	8	
+Creating data	
+100000	episodes sampled for epoch so far	
+42878	episodes accepted for dataset	
+65306	rejects in a row needed to stop	
+Spent 76 minutes 58.084832 seconds creating training data	
+Accepted 42.861062 % of samples for train	
+Epoch 8: Average training loss = 0.899710, training accuracy = 71.221333 %	
+Spent 15 minutes 36.185188 seconds creating test data	
+Accepted 42.206559 % of samples for test	
+For this round, test loss = 0.893077, test accuracy = 71.435556 %	
+Pseudoloss = 0.191007	
+Boosted test accuracy = 71.268889 %	
+15 minutes 17.587754 seconds finding boosted accuracy	
+Starting epoch	9	
+Creating data	
+100000	episodes sampled for epoch so far	
+42886	episodes accepted for dataset	
+65712	rejects in a row needed to stop	
+Spent 86 minutes 31.941577 seconds creating training data	
+Accepted 42.940939 % of samples for train	
+Epoch 9: Average training loss = 0.894836, training accuracy = 71.136444 %	
+Spent 17 minutes 36.244851 seconds creating test data	
+Accepted 42.482688 % of samples for test	
+For this round, test loss = 0.892984, test accuracy = 71.404444 %	
+Pseudoloss = 0.191726	
+Boosted test accuracy = 71.482222 %	
+17 minutes 46.190487 seconds finding boosted accuracy	
+Starting epoch	10	
+Creating data	
+100000	episodes sampled for epoch so far	
+42841	episodes accepted for dataset	
+66073	rejects in a row needed to stop	
+Spent 96 minutes 43.651472 seconds creating training data	
+Accepted 42.805654 % of samples for train	
+Epoch 10: Average training loss = 0.889367, training accuracy = 71.450444 %	
+Spent 19 minutes 42.461932 seconds creating test data	
+Accepted 42.281510 % of samples for test	
+For this round, test loss = 0.895417, test accuracy = 71.308889 %	
+Pseudoloss = 0.187145	
+Boosted test accuracy = 71.555556 %	
+19 minutes 5.188013 seconds finding boosted accuracy	
+Starting epoch	11	
+Creating data	
+100000	episodes sampled for epoch so far	
+42677	episodes accepted for dataset	
+66391	rejects in a row needed to stop	
+Spent 106 minutes 58.904002 seconds creating training data	
+Accepted 42.668305 % of samples for train	
+Epoch 11: Average training loss = 0.887877, training accuracy = 71.513556 %	
+Spent 21 minutes 28.677550 seconds creating test data	
+Accepted 42.738696 % of samples for test	
+For this round, test loss = 0.884819, test accuracy = 71.703333 %	
+Pseudoloss = 0.185296	
+Boosted test accuracy = 71.571111 %	
+21 minutes 5.505356 seconds finding boosted accuracy	
+Starting epoch	12	
+Creating data	
+100000	episodes sampled for epoch so far	
+42903	episodes accepted for dataset	
+66714	rejects in a row needed to stop	
+Spent 106 minutes 25.140553 seconds creating training data	
+Accepted 42.983022 % of samples for train	
+Epoch 12: Average training loss = 0.885241, training accuracy = 71.581556 %	
+Spent 21 minutes 23.556616 seconds creating test data	
+Accepted 43.010753 % of samples for test	
+For this round, test loss = 0.887476, test accuracy = 71.762222 %	
+Pseudoloss = 0.186861	
+Boosted test accuracy = 71.893333 %	
+21 minutes 4.819180 seconds finding boosted accuracy	
+Starting epoch	13	
+Creating data	
+100000	episodes sampled for epoch so far	
+42631	episodes accepted for dataset	
+66971	rejects in a row needed to stop	
+Spent 107 minutes 35.445677 seconds creating training data	
+Accepted 42.591252 % of samples for train	
+Epoch 13: Average training loss = 0.882093, training accuracy = 71.680222 %	
+Spent 21 minutes 18.856615 seconds creating test data	
+Accepted 43.114599 % of samples for test	
+For this round, test loss = 0.886012, test accuracy = 71.606667 %	
+Pseudoloss = 0.191820	
+Boosted test accuracy = 71.975556 %	
+21 minutes 5.978939 seconds finding boosted accuracy	
+Starting epoch	14	
+Creating data	
+100000	episodes sampled for epoch so far	
+42800	episodes accepted for dataset	
+67245	rejects in a row needed to stop	
+Spent 107 minutes 1.325668 seconds creating training data	
+Accepted 42.900779 % of samples for train	
+Epoch 14: Average training loss = 0.880578, training accuracy = 71.704222 %	
+Spent 21 minutes 32.731331 seconds creating test data	
+Accepted 42.832056 % of samples for test	
+For this round, test loss = 0.876379, test accuracy = 71.956667 %	
+Pseudoloss = 0.190386	
+Boosted test accuracy = 71.797778 %	
+21 minutes 6.641939 seconds finding boosted accuracy	
+Starting epoch	15	
+Creating data	
+100000	episodes sampled for epoch so far	
+42781	episodes accepted for dataset	
+67487	rejects in a row needed to stop	
+Spent 107 minutes 28.089161 seconds creating training data	
+Accepted 42.748562 % of samples for train	
+Epoch 15: Average training loss = 0.877490, training accuracy = 71.835111 %	
+Spent 21 minutes 46.442893 seconds creating test data	
+Accepted 42.674860 % of samples for test	
+For this round, test loss = 0.879796, test accuracy = 71.650000 %	
+Pseudoloss = 0.185673	
+Boosted test accuracy = 71.735556 %	
+21 minutes 6.396178 seconds finding boosted accuracy	
+Starting epoch	16	
+Creating data	
+100000	episodes sampled for epoch so far	
+42633	episodes accepted for dataset	
+67701	rejects in a row needed to stop	
+Spent 107 minutes 21.080141 seconds creating training data	
+Accepted 42.651926 % of samples for train	
+Epoch 16: Average training loss = 0.875373, training accuracy = 71.883556 %	
+Spent 21 minutes 4.793391 seconds creating test data	
+Accepted 43.466922 % of samples for test	
+For this round, test loss = 0.883737, test accuracy = 71.757778 %	
+Pseudoloss = 0.192232	
+Boosted test accuracy = 72.004444 %	
+21 minutes 5.537255 seconds finding boosted accuracy	
+Starting epoch	17	
+Creating data	
+100000	episodes sampled for epoch so far	
+42908	episodes accepted for dataset	
+67939	rejects in a row needed to stop	
+Spent 106 minutes 40.853423 seconds creating training data	
+Accepted 42.974525 % of samples for train	
+Epoch 17: Average training loss = 0.874460, training accuracy = 71.880889 %	
+Spent 21 minutes 24.598832 seconds creating test data	
+Accepted 42.957172 % of samples for test	
+For this round, test loss = 0.869547, test accuracy = 72.151111 %	
+Pseudoloss = 0.187399	
+Boosted test accuracy = 71.971111 %	
+21 minutes 6.173286 seconds finding boosted accuracy	
+Starting epoch	18	
+Creating data	
+100000	episodes sampled for epoch so far	
+42504	episodes accepted for dataset	
+68107	rejects in a row needed to stop	
+Spent 107 minutes 40.999325 seconds creating training data	
+Accepted 42.481245 % of samples for train	
+Epoch 18: Average training loss = 0.875120, training accuracy = 71.936889 %	
+Spent 21 minutes 31.259145 seconds creating test data	
+Accepted 42.724088 % of samples for test	
+For this round, test loss = 0.866100, test accuracy = 71.991111 %	
+Pseudoloss = 0.189501	
+Boosted test accuracy = 71.915556 %	
+21 minutes 6.497237 seconds finding boosted accuracy	
+Starting epoch	19	
+Creating data	
+100000	episodes sampled for epoch so far	
+42836	episodes accepted for dataset	
+68327	rejects in a row needed to stop	
+Spent 106 minutes 41.633893 seconds creating training data	
+Accepted 42.923613 % of samples for train	
+Epoch 19: Average training loss = 0.873066, training accuracy = 71.964000 %	
+Spent 21 minutes 24.587441 seconds creating test data	
+Accepted 42.970093 % of samples for test	
+For this round, test loss = 0.870052, test accuracy = 71.897778 %	
+Pseudoloss = 0.187283	
+Boosted test accuracy = 72.095556 %	
+21 minutes 5.835153 seconds finding boosted accuracy	
+Starting epoch	20	
+Creating data	
+100000	episodes sampled for epoch so far	
+42590	episodes accepted for dataset	
+68488	rejects in a row needed to stop	
+Spent 107 minutes 39.724141 seconds creating training data	
+Accepted 42.548122 % of samples for train	
+Epoch 20: Average training loss = 0.871533, training accuracy = 71.902222 %	
+Spent 21 minutes 24.249637 seconds creating test data	
+Accepted 43.038519 % of samples for test	
+For this round, test loss = 0.869120, test accuracy = 72.003333 %	
+Pseudoloss = 0.187331	
+Boosted test accuracy = 72.100000 %	
+21 minutes 5.701465 seconds finding boosted accuracy	
+Starting epoch	21	
+Creating data	
+100000	episodes sampled for epoch so far	
+42838	episodes accepted for dataset	
+68682	rejects in a row needed to stop	
+Spent 107 minutes 1.351272 seconds creating training data	
+Accepted 42.782213 % of samples for train	
+Epoch 21: Average training loss = 0.871873, training accuracy = 71.993111 %	
+Spent 21 minutes 34.078946 seconds creating test data	
+Accepted 42.846737 % of samples for test	
+For this round, test loss = 0.872182, test accuracy = 72.096667 %	
+Pseudoloss = 0.185133	
+Boosted test accuracy = 72.046667 %	
+21 minutes 27.955901 seconds finding boosted accuracy	
+Starting epoch	22	
+Creating data	
+100000	episodes sampled for epoch so far	
+42815	episodes accepted for dataset	
+68846	rejects in a row needed to stop	
+Spent 107 minutes 14.156630 seconds creating training data	
+Accepted 42.844534 % of samples for train	
+Epoch 22: Average training loss = 0.870408, training accuracy = 71.999111 %	
+Spent 21 minutes 20.912112 seconds creating test data	
+Accepted 43.209610 % of samples for test	
+For this round, test loss = 0.868195, test accuracy = 72.083333 %	
+Pseudoloss = 0.188314	
+Boosted test accuracy = 72.273333 %	
+21 minutes 6.277427 seconds finding boosted accuracy	
+Starting epoch	23	
+Creating data	
+100000	episodes sampled for epoch so far	
+42662	episodes accepted for dataset	
+68991	rejects in a row needed to stop	
+Spent 107 minutes 44.852522 seconds creating training data	
+Accepted 42.674860 % of samples for train	
+Epoch 23: Average training loss = 0.869510, training accuracy = 72.020000 %	
+Spent 21 minutes 37.784850 seconds creating test data	
+Accepted 42.665756 % of samples for test	
+For this round, test loss = 0.868826, test accuracy = 72.023333 %	
+Pseudoloss = 0.185239	
+Boosted test accuracy = 72.393333 %	
+21 minutes 6.739219 seconds finding boosted accuracy	
+Starting epoch	24	
+Creating data	
