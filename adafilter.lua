@@ -25,114 +25,75 @@ function _ploss(prob_output, right_label)
 end
 
 
-function pseudoloss(episode_outputs, labels, weights, n_episodes, episode_length)
-    -- Given weak learner outputs, this gives the pseudoloss over distribution
-    -- D_t for the weak learner.
-    local loss = 0
+function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
+    -- Given weak learner outputs, this gives the pseudoloss for the weak learner
+    -- This outputs the average pseudoloss over the episode
+    -- Weighting of pseudoloss will be done elsewhere
+    local losses = torch.Tensor(n_episodes):zero()
+    if CUDA then
+        losses = losses:cuda()
+    end
+
     -- prob_outputs is a table here
     for ep = 1, n_episodes do
-        local episode = episode_outputs[ep]
         local start = (ep - 1) * episode_length
+        local episode = episode_outputs[{ {start+1, start+episode_length} }]
         for step = 1, episode_length do
             local ind = start + step
             local correct = labels[ind]
-            loss = loss + weights[ep] * _ploss(episode[step], correct)
+            losses[ep] = losses[ep] + _ploss(episode[step], correct)
         end
     end
-    -- weights are on a per episode basis, but each is episode_length samples
-    local norm = weights:sum() * episode_length
-    -- this is average pseudoloss
-    return loss / norm
+    -- Norm over episode length
+    return losses / episode_length
+    return losses
 end
 
 
-function regenerateDataset(model, weak_learner_outputs, alpha, prev_data, prev_labels, prev_weights, n_episodes, episode_length)
-    -- Takes the previous weak learner outputs on the previous dataset.
-    -- Resamples from the previous data. Reweights the newly generated data
-    local eps = torch.Tensor(n_episodes * episode_length, N_STICKERS * N_COLORS):zero()
-    local eps_labels = torch.LongTensor(n_episodes * episode_length):zero()
-    local weights = torch.Tensor(n_episodes):zero()
-    -- Horribly abusing Lua globals here - this should be set
-    -- in time
+function nextWeights(weights, losses, alpha, n_episodes)
+    -- Next weight prop to D_t(i) * exp(alpha_t * pseudoloss(i))
+    local factor = losses * alpha
+    local next_w = weights * factor:exp()
+    -- Normalize such that there are n_episodes eps total
+    return next_w * n_episodes / next_w:sum()
+end
+
+
+function computeBoostedWeightsAndAcc(model, episodes, labels, n_episodes, episode_length, weight_to_replace)
+    -- Model is expected to be an Averager instance (outputs
+    -- probabilities from averaged models)
+    local outputs = torch.Tensor(episode_length, n_episodes, N_MOVES):zero()
     if CUDA then
-        eps = eps:cuda()
-        eps_labels = eps_labels:cuda()
         weights = weights:cuda()
+        outputs = outputs:cuda()
     end
 
-    local j = 1
-    for i = 1, n_episodes do
-        -- Resample from last epoch
-        -- exp(alpha) if misclassified
-        -- TODO
-    end
-    while j <= n_episodes do
-        local episode, moves = randomCubeEpisode(episode_length)
-        -- Horribly abusing Lua globals here - this should be set
-        -- in time
-        if CUDA then
-            episode = episode:cuda()
-            moves = moves:cuda()
-        end
-        episode:resize(episode_length, N_STICKERS * N_COLORS)
-        total_samples = total_samples + 1
-        local prob = accept_prob(model, episode, moves, episode_length, target_error, dt_prime)
-        if weighted then
-            episode_weights[i] = prob
-        end
-        if weighted or torch.uniform() < prob then
-            local start = (i-1) * episode_length
-            eps[{ {start+1, start+episode_length} }] = episode
-            eps_labels[{ {start+1, start+episode_length} }] = moves
-            i = i + 1
-            n_fails = 0
-            -- the algorithm design gives more time if samples are accepted
-            dt_prime = confidence / (i * (i+1))
-            threshold = _threshold(target_error, dt_prime, i)
-        else
-            n_fails = n_fails + 1
-            if n_fails >= threshold then
-                print('Failed to generate, wrapping up training')
-                return
-            end
-        end
-        if total_samples % 100000 == 0 then
-            print(total_samples, 'episodes sampled for epoch so far')
-            print(i, 'episodes accepted for dataset')
-            print(math.ceil(threshold), 'rejects in a row needed to stop')
-        end
-    end
-    if weighted then
-        return eps, eps_labels, episode_weights
-    else
-        return eps, eps_labels, total_samples
-    end
-end
-
-
-function estimateEdge(outputs, labels, n_episodes, episode_length)
-    -- This is passed the run of model outputs from higher up the stack
-    -- Exponentiate outputs
+    -- Compute in one enormous batch
+    local seqIndices = torch.LongTensor():range(
+        1, 1 + (n_episodes - 1) * episode_length, episode_length
+    )
+    local inputs = {}
     for step = 1, episode_length do
-        outputs[step] = outputs[step]:exp()
+        inputs[step] = episodes:select()
+        seqIndices = seqIndices + 1
     end
-    -- Shapes:
-    --  outputs is a table of epslen elements, each is n_test x N_MOVES
-    --  labels is labels for ep 1, ep 2, ep3, all concatenated together
-    --  The first episode is the first entry in each table tensor
-    --  The second is the 2nd entry in each table tensor
-    --  etc.
-    local episode_outputs = {}
-    for ep = 1, n_episodes do
-        episode_outputs[ep] = torch.Tensor(episode_length, N_MOVES)
-        -- Again, abusing Lua globals here
-        if CUDA then
-            episode_outputs[ep] = episode_outputs[ep]:cuda()
-        end
+    model:forget()
+    local _outputs = model:forward(inputs)
+    -- Move from table to Tensor
+    for step = 1, episode_length do
+        outputs[step] = _outputs[step]
+    end
+    outputs = outputs:transpose(1, 2)
+    outputs = outputs:resize(n_episodes * episode_length, N_MOVES)
 
-        for step = 1, episode_length do
-            episode_outputs[ep][step] = outputs[step][ep]
-        end
-    end
-    return 0.5 - pseudoloss(episode_outputs, labels, n_episodes, episode_length)
+    -- Compute the accuracy of the boosted model while we're here
+    _, best = outputs:max(2)
+    best:resize(n_episodes * episode_length)
+    correct = labels:eq(best):sum()
+
+    local losses = pseudoloss(outputs, labels, n_episodes, episode_length)
+    local weights = losses:exp()
+    -- Normalize to amount of weight to replace
+    local normed = weights * weight_to_replace / weights:sum()
+    return weights, correct
 end

@@ -683,54 +683,78 @@ function trainModelAdaBoost(weak_model, loss)
         -- DIFF SIX
         -- Compute edge of the weak_model and add to boosted model
         -- (outputs are from weak model, see above)
-        local edge = estimateEdge(outputs, test_labels, n_test, episode_length)
-        print(string.format("Pseudoloss = %f", (edge - 0.5) * -1))
+        allTrainOutputs = allTrainOutputs:exp()  -- Expects probabilities, not log probs
+        local plosses = pseudoloss(allTrainOutputs, train_labels, n_train, episode_length)
+        local weighted_losses = plosses * weights
+        local avg_weighted_loss = weighted_losses:sum() / weights:sum()
 
-        if edge < 0 then
-            print("!!! EDGE WAS NOT POSITIVE !!!")
+        print(string.format("Pseudoloss over D_t = %f", avg_weighted_loss))
+
+        if avg_weighted_loss > 0.5 then
+            print("!!! WORSE THAN RANDOM GUESSING !!!")
             print("Not adding classifier this round, trying again...")
         else
-            local alpha = 0.5 * math.log( (0.5 + edge) / (0.5 - edge) )
+            local alpha = math.log( (1 - avg_weighted_loss) / avg_weighted_loss )
             local toAdd = weak_model:clone()
             model:addModel(weak_model, alpha)
         end
         -- END DIFF SIX
 
         -- DIFF SEVEN
-        -- Compute accuracy of the boosted classifier on a sampled test set from
-        -- the unfiltered distribution
-        local boostTimer = torch.Timer()
-        local n_boost_test = hyperparams.n_boost_test
-        local boost_test, boost_labels = generateEpisodes(n_boost_test)
-        boost_test:resize(n_boost_test * episode_length, N_STICKERS * N_COLORS)
-        local boost_correct = 0, 0
-        -- Model only takes one cube episode at a time
-        for i = 1, n_boost_test do
-            local inputs = {}
-            local targets = {}
-            local start = (i-1) * episode_length
-            for step = 1, episode_length do
-                inputs[step] = boost_test[start + step]
-                targets[step] = boost_labels[start + step]
-            end
-            model:forget() -- forget past test runs
-            local outputs = model:forward(inputs)
-
-            for step = 1, episode_length do
-                _, best = outputs[step]:max(1)
-                trueVal = targets[step]
-                if best[1] == targets[step] then
-                    boost_correct = boost_correct + 1
-                end
+        -- Update datasets for the next epoch
+        train_weights = nextWeights(train_weights, plosses, alpha, n_train)
+        -- Resample data w.p.
+        local next_train = torch.Tensor(n_train * episode_length, N_STICKERS * N_COLORS):zero()
+        local next_train_labels = torch.Tensor(n_train * episode_length, N_MOVES):zero()
+        local next_train_weights = torch.Tensor(n_train):zero()
+        if CUDA then
+            next_train = next_train:cuda()
+            next_train_labels = next_train_labels:cuda()
+            next_train_weights = next_train_weights:cuda()
+        end
+        local j = 1
+        for i = 1, n_train do
+            if torch.uniform() < hyperparams.keepprob then
+                -- Add the sample
+                local start = (j-1) * episode_length
+                next_train[{ {start+1, start+episode_length} }] = train[{ {start+1, start+episode_length} }]
+                next_train_labels[{ {start+1, start+episode_length} }] = train_labels[{ {start+1, start+episode_length} }]
+                next_train_weights[{ {start+1, start+episode_length} }] = train_weights[{ {start+1, start+episode_length} }]
+                j = j + 1
             end
         end
+        -- END DIFF SEVEN
 
-        boost_correct = boost_correct / (n_boost_test * episode_length) * 100
+        -- DIFF EIGHT
+        -- Fill in the gaps, using them to evaluate the power of the boosted model
+        local boostTimer = torch.Timer()
+
+        local n_boost_eps = n_train - j
+        local weight_to_replace = n_train - next_train_weights:sum()
+
+        local boost_eps, boost_labels = generateEpisodes(n_boost_eps)
+        boost_eps:resize(n_boost_eps * episode_length, N_STICKERS * N_COLORS)
+
+        local boost_weights, boost_correct = computeBoostedWeightsAndAcc(
+            model,
+            boost_eps,
+            boost_labels,
+            n_boost_eps,
+            episode_length,
+            weight_to_replace
+        )
+
+        local start = (j-1) * episode_length
+        next_train[{ {start+1, n_train * episode_length} }] = boost_eps
+        next_train_labels[{ {start+1, n_train * episode_length} }] = boost_labels
+        next_train_weights[{ {start+1, n_train * episode_length} }] = boost_weights
+
+        boost_correct = boost_correct / (n_boost_eps * episode_length) * 100
         print(string.format("Boosted test accuracy = %f %%", boost_correct))
         seconds = boostTimer:time().real
         boost_time_min = seconds / 60
         seconds = seconds - 60 * math.floor(boost_time_min)
-        print(string.format('%d minutes %f seconds finding boosted accuracy', minutes, seconds))
+        print(string.format('%d minutes %f seconds refilling data', minutes, seconds))
         -- END DIFF SEVEN
 
         -- save epoch data
@@ -800,7 +824,7 @@ if from_cmd_line then
     cmd:option('--gpu', 0, 'Use GPU or not')
     cmd:option('--model', NOMODEL, "Initialize with a pre-trained model. Note this will clobber the model type (but will not clobber anything else)")
     cmd:option('--adaboost', 0, 'Use AdaBoost or not')
-    cmd:option('--nboosttest', 5000, 'Samples to use for testing boosted model. Ignored unless FilterBoost is used')
+    cmd:option('--keepprob', 0.9, 'Probability of keeping sample for next iteration')
     opt = cmd:parse(arg or {})
 
     CUDA = (opt.gpu ~= 0)
