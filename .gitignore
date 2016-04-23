@@ -15,3 +15,5 @@ models_streaming/*_lstm/rubiks_*
 foo
 # Filename for when I need to write a short sanity checking script
 foo.lua
+# It's 1.6 GB even when gzipped. Figure out what to do
+models_filter/9_lstm/rubiks_best.gz
