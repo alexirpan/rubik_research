@@ -521,7 +521,7 @@ function trainModelAdaBoost(weak_model, loss)
         print('Starting epoch', epoch)
         -- Sometimes we get some accumulated floating point errors
         -- Find out how big they are, and fix them
-        if math.abs(train_weights:sum() - n_train) < 0.001 then
+        if math.abs(train_weights:sum() - n_train) > 0.001 then
             print(string.format('!! Expected weights to sum to %d !!', n_train))
             print('Actually sum to', train_weights:sum())
         end
