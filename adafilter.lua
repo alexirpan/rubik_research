@@ -89,7 +89,6 @@ function computeBoostedWeightsAndAcc(model, episodes, labels, n_episodes, episod
     -- probabilities from averaged models)
     local outputs = torch.Tensor(n_episodes * episode_length, N_MOVES):zero()
     if CUDA then
-        weights = weights:cuda()
         outputs = outputs:cuda()
     end
 
