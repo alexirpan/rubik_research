@@ -519,13 +519,14 @@ function trainModelAdaBoost(weak_model, loss)
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
-        -- Sometimes we get some accumulated floating point errors, this helps
-        -- fix some of that
-        train_weights = train_weights * n_train / train_weights:sum()
+        -- Sometimes we get some accumulated floating point errors
+        -- Find out how big they are, and fix them
         if math.abs(train_weights:sum() - n_train) < 0.001 then
             print(string.format('!! Expected weights to sum to %d !!', n_train))
             print('Actually sum to', train_weights:sum())
         end
+        train_weights = train_weights * n_train / train_weights:sum()
+
         local err, correct = 0, 0
         -- Will reorder later, this makes it easier to collect
         local allTrainOutputs = torch.Tensor(n_train * episode_length, N_MOVES):zero()
