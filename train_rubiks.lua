@@ -586,7 +586,9 @@ function trainModelAdaBoost(weak_model, loss)
             -- Here is where we use assumption that ind is index into episode number
             -- Sum over column = sample weight, Sum over all columns in episode and
             -- normalize
-            err = err + train_weights[{ {start, start+episode_length-1} }]:sum() / episode_length * loss:forward(outputs, targets)
+            local episode_sum = train_weights[{ {start, start+episode_length-1} }]:sum()
+            local episode_weight = episode_sum / episode_length
+            err = err + episode_weight * loss:forward(outputs, targets)
 
             -- reset seqIndices to check accuracy
             seqIndices = torch.LongTensor():range(
@@ -602,7 +604,7 @@ function trainModelAdaBoost(weak_model, loss)
                 -- batchSize 1 assumption also used here
                 -- (Need weighted accuracy for both error and classifcation)
                 if predicted[1] == trueVal[1] then
-                    correct = correct + train_weights[ind]
+                    correct = correct + episode_weight
                 end
                 -- Copy outputs into allTrainOutputs
                 local batchStart = (ind - 1) * batchSize * episode_length

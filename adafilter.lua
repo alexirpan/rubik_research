@@ -35,8 +35,8 @@ function _ploss(prob_output, right_label)
     end
 
     for class = 1, N_MOVES do
-        if class != right_label then
-            output[class] = _q(output, right_label, class)
+        if class ~= right_label then
+            output[class] = _q(cop, right_label, class)
         end
     end
     return output
@@ -47,7 +47,7 @@ function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
     -- Given weak learner outputs, this gives the pseudoloss for the weak learner
     -- This outputs the average pseudoloss over the episode
     -- Weighting of pseudoloss will be done elsewhere
-    local losses = torch.Tensor(n_episodes * episode_lengths, N_MOVES):zero()
+    local losses = torch.Tensor(n_episodes * episode_length, N_MOVES):zero()
     if CUDA then
         losses = losses:cuda()
     end
@@ -55,7 +55,7 @@ function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
     for i = 1, n_episodes * episode_length do
         -- Feed samples to get average pseudoloss
         local ploss = _ploss(episode_outputs[i], labels[i])
-        losses[ep] = ploss
+        losses[i] = ploss
     end
     return losses
 end
