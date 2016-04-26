@@ -15,3 +15,5 @@ foo
 foo.lua
 # It's 1.6 GB even when gzipped. Figure out what to do
 models_filter/9_lstm/rubiks_best.gz
+# EVERYTHING HERE IS HUGE
+models_ada
