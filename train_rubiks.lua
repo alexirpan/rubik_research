@@ -512,20 +512,22 @@ function trainModelAdaBoost(weak_model, loss)
     local train, train_labels = generateEpisodes(n_train)
     train:resize(n_train * episode_length,
                  N_STICKERS * N_COLORS)
-    local train_weights = torch.ones(n_train)
+
+    local train_weights = torch.ones(n_train * episode_length)
     if CUDA then
         train_weights = train_weights:cuda()
     end
+    local total_weight = n_train * episode_length
 
     while epoch <= n_epochs do
         print('Starting epoch', epoch)
         -- Sometimes we get some accumulated floating point errors
         -- Find out how big they are, and fix them
-        if math.abs(train_weights:sum() - n_train) > 0.001 then
-            print(string.format('!! Expected weights to sum to %d !!', n_train))
+        if math.abs(train_weights:sum() - total_weight) > 0.001 then
+            print(string.format('!! Expected weights to sum to %d !!', total_weight))
             print('Actually sum to', train_weights:sum())
         end
-        train_weights = train_weights * n_train / train_weights:sum()
+        train_weights = train_weights * total_weight / train_weights:sum()
 
         local err, correct = 0, 0
         -- Will reorder later, this makes it easier to collect

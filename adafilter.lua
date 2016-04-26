@@ -39,7 +39,7 @@ function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
     -- Given weak learner outputs, this gives the pseudoloss for the weak learner
     -- This outputs the average pseudoloss over the episode
     -- Weighting of pseudoloss will be done elsewhere
-    local losses = torch.Tensor(n_episodes):zero()
+    local losses = torch.Tensor(n_episodes * episode_lengths):zero()
     if CUDA then
         losses = losses:cuda()
     end
