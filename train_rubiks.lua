@@ -212,18 +212,16 @@ end
 
 
 function csvAdaHeader()
-    return 'epoch,train_err,train_acc,pseudoloss,unweighted_good_ploss,unweighted_bad_ploss,boost_acc,boost_time,total_time\n'
+    return 'epoch,train_err,train_acc,pseudoloss,boost_acc,boost_time,total_time\n'
 end
 
 
 function csvAdaLine(save_info)
-    return string.format('%d,%f,%f,%f,%f,%f,%f,%f,%f\n',
+    return string.format('%d,%f,%f,%f,%f,%f,%f\n',
         save_info.epoch,
         save_info.train_err,
         save_info.train_acc,
         save_info.pseudoloss,
-        save_info.avg_unweighted_good_ploss,
-        save_info.avg_unweighted_bad_ploss,
         save_info.boost_acc,
         save_info.boost_time,
         save_info.total_time
@@ -513,7 +511,11 @@ function trainModelAdaBoost(weak_model, loss)
     train:resize(n_train * episode_length,
                  N_STICKERS * N_COLORS)
 
-    local train_weights = torch.ones(n_train * episode_length)
+    local train_weights = torch.ones(n_train * episode_length, N_MOVES) / (N_MOVES - 1)
+    -- Zero out the weight for the correct label
+    for i = 1, n_train * episode_length do
+        train_weights[i][train_labels[i]] = 0
+    end
     if CUDA then
         train_weights = train_weights:cuda()
     end
@@ -582,7 +584,9 @@ function trainModelAdaBoost(weak_model, loss)
 
             local outputs = weak_model:forward(inputs)
             -- Here is where we use assumption that ind is index into episode number
-            err = err + train_weights[ind] * loss:forward(outputs, targets)
+            -- Sum over column = sample weight, Sum over all columns in episode and
+            -- normalize
+            err = err + train_weights[{ {start, start+episode_length-1} }]:sum() / episode_length * loss:forward(outputs, targets)
 
             -- reset seqIndices to check accuracy
             seqIndices = torch.LongTensor():range(
@@ -608,11 +612,17 @@ function trainModelAdaBoost(weak_model, loss)
 
             -- backward sequence (backprop through time)
             local gradOutputs = loss:backward(outputs, targets)
+            -- Scaling gradient wrt outputs will scale the gradients wrt inputs
+            -- by the same amount
+            -- Use sum over mislabellings as proxy
+            -- (Assumption that batchSize == 1 used here)
+            for step = 1, episode_length do
+                gradOutputs[step] = gradOutputs[step] * train_weights[start + step - 1]:sum()
+            end
             local gradInputs = weak_model:backward(inputs, gradOutputs)
 
             -- and update
-            -- batchSize 1 assumption also used here
-            weak_model:updateParameters(train_weights[ind] * learningRate)
+            weak_model:updateParameters(learningRate)
         end
         -- END DIFF THREE
         -- for averages, we need to account for there being n_episodes * episode_length samples total
@@ -634,10 +644,11 @@ function trainModelAdaBoost(weak_model, loss)
         -- (outputs are from weak model, see above)
         allTrainOutputs = allTrainOutputs:exp()  -- Expects probabilities, not log probs
 
-        local plosses, unweighted_good, unweighted_bad = pseudoloss(allTrainOutputs, train_labels, n_train, episode_length)
-        local weighted_losses = plosses * train_weights
-        -- !! Torch multiplication of two 1D tensors does dot product !!
-        local avg_weighted_loss = plosses * train_weights / n_train
+        -- Raw (i,y) losses
+        local plosses = pseudoloss(allTrainOutputs, train_labels, n_train, episode_length)
+        -- Weighted (i,y) losses
+        local weighted_losses = plosses:clone():cmul(train_weights)
+        local avg_weighted_loss = weighted_losses:sum() / total_weight
 
         print(string.format("Pseudoloss over D_%d = %f", epoch, avg_weighted_loss))
 
@@ -657,7 +668,7 @@ function trainModelAdaBoost(weak_model, loss)
         -- Update datasets for the next epoch
         local next_train = torch.Tensor(n_train * episode_length, N_STICKERS * N_COLORS):zero()
         local next_train_labels = torch.LongTensor(n_train * episode_length):zero()
-        local next_train_weights = torch.Tensor(n_train):zero()
+        local next_train_weights = torch.Tensor(n_train * episode_length, N_MOVES):zero()
         if CUDA then
             next_train = next_train:cuda()
             next_train_labels = next_train_labels:cuda()
@@ -665,7 +676,7 @@ function trainModelAdaBoost(weak_model, loss)
         end
 
         if update_weights then
-            train_weights = nextWeights(train_weights, plosses, alpha, n_train)
+            train_weights = nextWeights(train_weights, plosses, alpha, total_weight)
         end
 
         -- Keep each sample with uniform probability
@@ -677,7 +688,7 @@ function trainModelAdaBoost(weak_model, loss)
                 local start_next = (j-1) * episode_length
                 next_train[{ {start_next+1, start_next+episode_length} }] = train[{ {start_old+1, start_old+episode_length} }]
                 next_train_labels[{ {start_next+1, start_next+episode_length} }] = train_labels[{ {start_old+1, start_old+episode_length} }]
-                next_train_weights[j] = train_weights[i]
+                next_train_weights[{ {start_next+1, start_next+episode_length} }] = train_weights[{ {start_old+1, start_old+episode_length} }]
                 j = j + 1
             end
         end
@@ -687,7 +698,7 @@ function trainModelAdaBoost(weak_model, loss)
         -- Fill in the gaps, using them to evaluate the power of the boosted model
         local boostTimer = torch.Timer()
         local n_boost_eps = n_train - (j - 1)
-        local weight_to_replace = n_train - next_train_weights:sum()
+        local weight_to_replace = total_weight - next_train_weights:sum()
 
         local boost_eps, boost_labels = generateEpisodes(n_boost_eps)
         boost_eps:resize(n_boost_eps * episode_length, N_STICKERS * N_COLORS)
@@ -706,7 +717,7 @@ function trainModelAdaBoost(weak_model, loss)
         local start = (j-1) * episode_length
         next_train[{ {start+1, n_train * episode_length} }] = boost_eps
         next_train_labels[{ {start+1, n_train * episode_length} }] = boost_labels
-        next_train_weights[{ {j, n_train} }] = boost_weights
+        next_train_weights[{ {start+1, n_train * episode_length} }] = boost_weights
 
         boost_correct = boost_correct / (n_boost_eps * episode_length) * 100
         print(string.format("Boosted test accuracy = %f %%", boost_correct))
@@ -741,8 +752,6 @@ function trainModelAdaBoost(weak_model, loss)
             train_err = err,
             train_acc = correct,
             pseudoloss = avg_weighted_loss,
-            avg_unweighted_good_ploss = unweighted_good,
-            avg_unweighted_bad_ploss = unweighted_bad,
             boost_acc = boost_correct,
             epoch = epoch,
             total_time = total_time_min + timeOffset,

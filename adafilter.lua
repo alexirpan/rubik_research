@@ -2,6 +2,10 @@
 -- Computes pseudoloss, samples data while assigning weights, etc.
 require 'rubiks'
 
+function _q(prob_output, right_label, wrong_label)
+    return 0.5 * (1 - prob_output[right_label] + prob_output[wrong_label])
+end
+
 function _ploss(prob_output, right_label)
     -- Pseudoloss for one example
     -- Defined as 0.5 * (1 - Pr[correct label] + \sum_{wrong} weight_wrong * Pr[wrong])
@@ -20,18 +24,22 @@ function _ploss(prob_output, right_label)
     -- can be pretty low.
     -- We scale the output to emphasis the gap
     local total = 1
-    local largest, best = prob_output:max(1)
+    local cop = prob_output:clone()
+    local largest, _ = prob_output:max(1)
     largest = largest[1]
-    best = best[1]
+    cop = cop / largest
+
+    local output = torch.zeros(N_MOVES)
+    if CUDA then
+        output = output:cuda()
+    end
 
     for class = 1, N_MOVES do
-        if class == right_label then
-            total = total - prob_output[class] / largest
-        else
-            total = total + prob_output[class] / (largest * (N_MOVES - 1))
+        if class != right_label then
+            output[class] = _q(output, right_label, class)
         end
     end
-    return 0.5 * total, best == right_label
+    return output
 end
 
 
@@ -39,48 +47,26 @@ function pseudoloss(episode_outputs, labels, n_episodes, episode_length)
     -- Given weak learner outputs, this gives the pseudoloss for the weak learner
     -- This outputs the average pseudoloss over the episode
     -- Weighting of pseudoloss will be done elsewhere
-    local losses = torch.Tensor(n_episodes * episode_lengths):zero()
+    local losses = torch.Tensor(n_episodes * episode_lengths, N_MOVES):zero()
     if CUDA then
         losses = losses:cuda()
     end
-    local a = 0
-    local b = 0
-    local c = 0
-    local d = 0
 
-    for ep = 1, n_episodes do
-        -- Pull out episode
-        local start = (ep - 1) * episode_length
-        local episode = episode_outputs[{ {start+1, start+episode_length} }]
-        local labels = labels[{ {start+1, start+episode_length} }]
+    for i = 1, n_episodes * episode_length do
         -- Feed samples to get average pseudoloss
-        for step = 1, episode_length do
-            local ploss, is_right = _ploss(episode[step], labels[step])
-            losses[ep] = losses[ep] + ploss
-            if is_right then
-                a = a + ploss
-                b = b + 1
-            else
-                c = c + ploss
-                d = d + 1
-            end
-        end
+        local ploss = _ploss(episode_outputs[i], labels[i])
+        losses[ep] = ploss
     end
-    print('Average over good', a / b)
-    print('Average over bad', c / d)
-    print('Num good', b, 'Num bad', d)
-    -- Norm over episode length
-    return losses / episode_length, a / b, c / d
+    return losses
 end
 
 
-function nextWeights(weights, losses, alpha, n_episodes)
-    -- Next weight prop to D_t(i) * exp(alpha_t * pseudoloss(i))
+function nextWeights(weights, losses, alpha, total_weight)
+    -- Next weight prop to D_t(i, y) * exp(alpha_t * (pseudoloss(i,y) + 1))
     weights = weights:clone()
-    local factor = losses * alpha
+    local factor = (losses + 1) * alpha
     local next_w = weights:cmul(factor:exp())
-    -- Normalize such that there are n_episodes eps total
-    return next_w * n_episodes / next_w:sum()
+    return next_w * total_weight / next_w:sum()
 end
 
 
@@ -117,8 +103,15 @@ function computeBoostedWeightsAndAcc(model, episodes, labels, n_episodes, episod
     best:resize(n_episodes * episode_length)
     correct = labels:eq(best):sum()
 
+    -- Final derivation has weight work out to boosted pseudoloss + 1 (assuming weights
+    -- in boosted are normalized)
     local losses = pseudoloss(outputs, labels, n_episodes, episode_length)
+    losses = losses + 1
     local weights = losses:exp()
+    -- Set weights to 0 for correct
+    for i = 1, n_episodes * episode_length do
+        weights[i][labels[i]] = 0
+    end
     -- Normalize to amount of weight to replace
     local normed = weights * weight_to_replace / weights:sum()
     return normed, correct
