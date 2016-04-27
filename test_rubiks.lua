@@ -2,6 +2,8 @@ require 'rnn'
 require 'rubiks'
 require 'rubiks_utils'
 
+require 'averager'
+
 
 function trySolving(model, start_cube, randomized)
     -- applies moves to the cube until it hits the solved state, or
@@ -23,8 +25,12 @@ function trySolving(model, start_cube, randomized)
     while moves <= max_length and not start_cube:isSolved() do
         -- Sequencer expects a table of T timesteps
         -- So give it a table of 1 timestep
+        local feat = start_cube:toFeatures():resize(N_STICKERS * N_COLORS)
+        if CUDA then
+            feat = feat:cuda()
+        end
         local output = model:forward(
-            {start_cube:toFeatures():resize(N_STICKERS * N_COLORS)}
+            {feat}
         )[1]
         local _, action = output:max(1)
         action = action[1]
@@ -83,10 +89,19 @@ if from_cmd_line then
     cmd:option('--savefile', NOFILE, 'Where to save solve data')
     cmd:option('--ntest', 10000, 'Number of cubes to test on')
     cmd:option('--scramblelen', SCRAMBLE_DEFAULT, 'Length of scramble to use (default episode length + 1')
+    cmd:option('--gpu', 0, 'Use GPU or not')
     cmd:option('--randomized', 0, 'Use argmax policy or randomized policy. Not implemented yet.')
     cmd:text()
 
     opt = cmd:parse(arg or {})
+    torch.manualSeed(54321)
+
+    CUDA = (opt.gpu ~= 0)
+    if CUDA then
+        require 'cutorch'
+        require 'cunn'
+        cutorch.manualSeedAll(54321)
+    end
 
     if opt.model == NOMODEL then
         print('No model path specified, exiting')
@@ -99,6 +114,9 @@ if from_cmd_line then
 
     data = torch.load(opt.model, 'ascii')
     model = data.model
+    if CUDA then
+        model = model:cuda()
+    end
     episode_length = data.hyperparams.episode_length
     params_string = dumptable(data.hyperparams)
     if opt.scramblelen == SCRAMBLE_DEFAULT then
