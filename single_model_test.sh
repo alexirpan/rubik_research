@@ -13,5 +13,5 @@ declare -a savedir="${modeldir}_tests"
 mkdir $savedir
 for epslen in `seq 1 26`
 do
-    th test_rubiks.lua --model $model --scramblelen $epslen --savefile "${savedir}/${epslen}"
+    th test_rubiks.lua --model $model --scramblelen $epslen --savefile "${savedir}/${epslen}" --gpu 1
 done

@@ -101,6 +101,7 @@ if from_cmd_line then
         require 'cutorch'
         require 'cunn'
         cutorch.manualSeedAll(54321)
+        print('GPU prepped')
     end
 
     if opt.model == NOMODEL then
