@@ -3,7 +3,7 @@ require 'rubiks'
 require 'rubiks_utils'
 
 
-function trySolving(model, start_cube)
+function trySolving(model, start_cube, randomized)
     -- applies moves to the cube until it hits the solved state, or
     -- until it fails too many times
     --
@@ -38,7 +38,7 @@ function trySolving(model, start_cube)
 end
 
 
-function solveCubes(n_trials)
+function solveCubes(n_trials, randomized)
     local solved_count = 0
     local solved_hist = {}
     local solved_length = 0
@@ -48,7 +48,7 @@ function solveCubes(n_trials)
             print(n_trials - i, 'steps left')
         end
         cube = randomCube(scramble_length)
-        solved, moves = trySolving(model, cube)
+        solved, moves = trySolving(model, cube, randomized)
         if solved then
             local sol_len = table.getn(moves)
 
@@ -83,6 +83,7 @@ if from_cmd_line then
     cmd:option('--savefile', NOFILE, 'Where to save solve data')
     cmd:option('--ntest', 10000, 'Number of cubes to test on')
     cmd:option('--scramblelen', SCRAMBLE_DEFAULT, 'Length of scramble to use (default episode length + 1')
+    cmd:option('--randomized', 0, 'Use argmax policy or randomized policy. Not implemented yet.')
     cmd:text()
 
     opt = cmd:parse(arg or {})
@@ -122,7 +123,7 @@ if from_cmd_line then
         savefile:write(infostring .. '\n')
     end
 
-    solved_count, solved_hist, solved_length = solveCubes(n_trials)
+    solved_count, solved_hist, solved_length = solveCubes(n_trials, (opt.randomized ~= 0))
     if solved_count == 0 then
         infostring = 'Solved no cubes :('
     else

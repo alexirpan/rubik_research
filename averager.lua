@@ -147,6 +147,13 @@ function Averager:zeroGradParameters()
 end
 
 
+function Averager:remember(arg)
+    for i = 1, self.n_models do
+        self.models[i]:remember(arg)
+    end
+end
+
+
 function Averager:forget()
     for i = 1, self.n_models do
         self.models[i]:forget()

@@ -769,8 +769,11 @@ function trainModelAdaBoost(weak_model, loss)
         end
         -- END DIFF EIGHT
 
+        -- Too expensive to save at every epoch
+        --[[
         filename = saveTo .. '/rubiks_epoch' .. epoch
         torch.save(filename, saved, 'ascii')
+        ]]--
 
         -- convert back
         if CUDA then
