@@ -133,7 +133,7 @@ if from_cmd_line then
         'Episode length %d, test_acc %f %%. Using scrambles of length %d',
         params_string,
         episode_length,
-        data.test_acc,
+        data.boost_acc,
         scramble_length
     )
 
