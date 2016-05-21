@@ -1,0 +1,32 @@
+Testing model with these parameters:
+prev_epochs 0
+seed 987
+keepprob 0.8
+learningRate 0.1
+n_train 50000
+rho 10
+using_gpu true
+n_epochs 20
+model_type lstm
+hiddenSize 100
+episode_length 9
+max_models 10
+n_valid 0
+adaboost true
+saved_to models_ada_mislabel/9_lstm
+batchSize 1
+n_test 10000
+
+Episode length 9, test_acc 67.564568 %. Using scrambles of length 14
+Solved 4.69% of cubes, average solve length 6.776119
+Distribution of solve lengths on success
+0 1
+2 10
+4 64
+6 192
+8 149
+10 44
+12 5
+14 3
+16 1
+

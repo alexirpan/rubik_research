@@ -17,3 +17,6 @@ foo.lua
 models_filter/9_lstm/rubiks_best.gz
 # EVERYTHING HERE IS HUGE
 models_ada
+# ALSO HUGE
+models_ada_mislabel/*_lstm*/best_individual_model
+models_ada_mislabel/*_lstm*/rubiks_best

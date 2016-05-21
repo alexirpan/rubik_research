@@ -1,0 +1,151 @@
+Training an LSTM	
+Finished building model	
+Loaded hyperparameters	
+{
+  prev_epochs : 0
+  using_gpu : true
+  seed : 987
+  episode_length : 9
+  keepprob : 0
+  learningRate : 0.1
+  n_test : 10000
+  batchSize : 1
+  n_valid : 0
+  saved_to : "models_ada_mislabel/9_lstm_prob0"
+  n_epochs : 20
+  hiddenSize : 100
+  adaboost : true
+  rho : 10
+  model_type : "lstm"
+  n_train : 50000
+}
+Using episode length	9	
+Saving to	models_ada_mislabel/9_lstm_prob0	
+Initializing dataset	
+Starting epoch	1	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	449999.71875	
+Epoch 1: Average training loss = 1.233372, training accuracy = 63.290257 %	
+Pseudoloss over D_1 = 0.180321	
+Boosted test accuracy = 65.862444 %	
+3 minutes 7.040928 seconds refilling data and computing boost accuracy	
+Starting epoch	2	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	449999.96875	
+Epoch 2: Average training loss = 1.152524, training accuracy = 64.365056 %	
+Pseudoloss over D_2 = 0.222302	
+Boosted test accuracy = 65.277333 %	
+3 minutes 4.603092 seconds refilling data and computing boost accuracy	
+Starting epoch	3	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	449999.9375	
+Epoch 3: Average training loss = 1.121881, training accuracy = 65.248714 %	
+Pseudoloss over D_3 = 0.216824	
+Boosted test accuracy = 65.986000 %	
+3 minutes 3.871267 seconds refilling data and computing boost accuracy	
+Starting epoch	4	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	449999.9375	
+Epoch 4: Average training loss = 1.104838, training accuracy = 65.777791 %	
+Pseudoloss over D_4 = 0.213664	
+Boosted test accuracy = 66.158889 %	
+3 minutes 6.846529 seconds refilling data and computing boost accuracy	
+Starting epoch	5	
+Epoch 5: Average training loss = 1.091352, training accuracy = 66.306630 %	
+Pseudoloss over D_5 = 0.211203	
+Boosted test accuracy = 66.538222 %	
+3 minutes 6.704979 seconds refilling data and computing boost accuracy	
+Starting epoch	6	
+Epoch 6: Average training loss = 1.081955, training accuracy = 66.548473 %	
+Pseudoloss over D_6 = 0.208906	
+Boosted test accuracy = 66.966222 %	
+3 minutes 6.457109 seconds refilling data and computing boost accuracy	
+Starting epoch	7	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	450000.15625	
+Epoch 7: Average training loss = 1.075595, training accuracy = 66.609240 %	
+Pseudoloss over D_7 = 0.209485	
+Boosted test accuracy = 66.811778 %	
+3 minutes 6.591295 seconds refilling data and computing boost accuracy	
+Starting epoch	8	
+Epoch 8: Average training loss = 1.072572, training accuracy = 66.661595 %	
+Pseudoloss over D_8 = 0.209373	
+Boosted test accuracy = 67.423778 %	
+3 minutes 6.717370 seconds refilling data and computing boost accuracy	
+Starting epoch	9	
+Epoch 9: Average training loss = 1.065734, training accuracy = 66.877344 %	
+Pseudoloss over D_9 = 0.208052	
+Boosted test accuracy = 67.165111 %	
+3 minutes 7.207700 seconds refilling data and computing boost accuracy	
+Starting epoch	10	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	449999.96875	
+Epoch 10: Average training loss = 1.063888, training accuracy = 66.881368 %	
+Pseudoloss over D_10 = 0.207448	
+Boosted test accuracy = 67.244000 %	
+3 minutes 6.366049 seconds refilling data and computing boost accuracy	
+Starting epoch	11	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	450000.0625	
+Epoch 11: Average training loss = 1.057945, training accuracy = 67.172655 %	
+Pseudoloss over D_11 = 0.205928	
+Boosted test accuracy = 67.625556 %	
+3 minutes 6.827569 seconds refilling data and computing boost accuracy	
+Starting epoch	12	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	450000.09375	
+Epoch 12: Average training loss = 1.058452, training accuracy = 67.089576 %	
+Pseudoloss over D_12 = 0.207055	
+Boosted test accuracy = 67.588000 %	
+3 minutes 8.552418 seconds refilling data and computing boost accuracy	
+Starting epoch	13	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	450000.0625	
+Epoch 13: Average training loss = 1.058556, training accuracy = 67.188098 %	
+Pseudoloss over D_13 = 0.206459	
+Boosted test accuracy = 67.249778 %	
+3 minutes 6.743783 seconds refilling data and computing boost accuracy	
+Starting epoch	14	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	449999.96875	
+Epoch 14: Average training loss = 1.056576, training accuracy = 67.180831 %	
+Pseudoloss over D_14 = 0.206139	
+Boosted test accuracy = 66.487111 %	
+3 minutes 7.442820 seconds refilling data and computing boost accuracy	
+Starting epoch	15	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	450000.03125	
+Epoch 15: Average training loss = 1.056279, training accuracy = 67.213992 %	
+Pseudoloss over D_15 = 0.204917	
+Boosted test accuracy = 67.814222 %	
+3 minutes 7.222732 seconds refilling data and computing boost accuracy	
+Starting epoch	16	
+Epoch 16: Average training loss = 1.054060, training accuracy = 67.287840 %	
+Pseudoloss over D_16 = 0.206389	
+Boosted test accuracy = 67.910222 %	
+3 minutes 5.884418 seconds refilling data and computing boost accuracy	
+Starting epoch	17	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	449999.96875	
+Epoch 17: Average training loss = 1.050631, training accuracy = 67.325760 %	
+Pseudoloss over D_17 = 0.205594	
+Boosted test accuracy = 67.797333 %	
+3 minutes 7.138012 seconds refilling data and computing boost accuracy	
+Starting epoch	18	
+Epoch 18: Average training loss = 1.045234, training accuracy = 67.599462 %	
+Pseudoloss over D_18 = 0.204552	
+Boosted test accuracy = 67.822222 %	
+3 minutes 6.461681 seconds refilling data and computing boost accuracy	
+Starting epoch	19	
+!! Expected weights to sum to 450000 !!	
+Actually sum to	449999.9375	
+Epoch 19: Average training loss = 1.048931, training accuracy = 67.413554 %	
+Pseudoloss over D_19 = 0.204991	
+Boosted test accuracy = 67.892667 %	
+3 minutes 6.251913 seconds refilling data and computing boost accuracy	
+Starting epoch	20	
+Epoch 20: Average training loss = 1.046799, training accuracy = 67.472844 %	
+Pseudoloss over D_20 = 0.205219	
+Boosted test accuracy = 67.520000 %	
+3 minutes 7.680749 seconds refilling data and computing boost accuracy	
+Took 439 minutes 43.949622 seconds	
