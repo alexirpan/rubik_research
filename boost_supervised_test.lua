@@ -30,11 +30,12 @@ function generateEpisodes(n_episodes, episode_length)
 end
 
 
---TODO refactor here too
+-- Old version of the code expected this to average the given models
+-- Cannibalizing it to print accuracy of each individual model
 function testModels(models, n_test, episode_length)
     test, test_labels = generateEpisodes(n_test, episode_length)
     -- test error
-    local test_err, test_correct = 0, 0
+    local test_correct = torch.zeros(#models)
 
     for i = 1, n_test do
         if i % 100 == 0 then
@@ -56,25 +57,21 @@ function testModels(models, n_test, episode_length)
 
         target = test_labels:narrow(1, start, episode_length)
         for step = 1, episode_length do
-            local total = torch.Tensor(N_MOVES):zero()
-            if CUDA then
-                total = total:cuda()
-            end
             for i = 1, #models do
-                total = total + outputs[i][step]:exp()
-            end
-            _, best = total:max(1)
-            if best[1] == target[step] then
-                test_correct = test_correct + 1
+                _, best = outputs[i][step]:max(1)
+                if best[1] == target[step] then
+                    test_correct[i] = test_correct[i] + 1
+                end
             end
         end
     end
     -- again account for episode length
     test_correct = test_correct / (n_test * episode_length) * 100
-    print(string.format("Test accuracy = %f %%", test_correct))
+    return test_correct
 end
 
 
+-- Also cannibalizing this code
 local from_cmd_line = (debug.getinfo(3).name == nil)
 
 if from_cmd_line then
@@ -82,12 +79,19 @@ if from_cmd_line then
     cmd:text()
     cmd:text("Testing script to measure supervised learning accuracy")
     cmd:text("when using an average of previous models")
+    NOMODEL = 'NOMODEL'
+    cmd:option('--model', NOMODEL, 'Boosted model to open')
     cmd:option('--savedir', 'models', 'Directory where models were saved')
     cmd:option('--nmodels', 10, 'Number of models to average')
     cmd:option('--startepoch', 1, 'Which epoch to start at. Takes all models from startepoch to startepoch + nmodels - 1')
     cmd:option('--ntest', 10000, 'Number episodes to use for accuracy')
     cmd:option('--gpu', 0, 'Use GPU or not')
     opt = cmd:parse(arg or {})
+
+    if opt.model == NOMODEL then
+        print("No model specified")
+        return
+    end
 
     CUDA = (opt.gpu ~= 0)
     if CUDA then
@@ -99,18 +103,30 @@ if from_cmd_line then
     if CUDA then
         cutorch.manualSeedAll(12345)
     end
+
     hyperparams = torch.load(opt.savedir .. '/hyperparams', 'ascii')
     episode_length = hyperparams.episode_length
-    basename = opt.savedir .. '/rubiks_epoch'
-    n_models = opt.nmodels
-    start = opt.startepoch
-    models = {}
-    for ep = start, start + n_models - 1 do
-        model = torch.load(basename .. ep, 'ascii').model
-        if CUDA then
-            model = model:cuda()
-        end
-        table.insert(models, model)
+
+    name = opt.savedir .. '/' .. opt.model
+
+    print("Loading model...")
+    data = torch.load(name, 'ascii')
+    model = data.model
+    if CUDA then
+        model = model:cuda()
     end
-    testModels(models, opt.ntest, episode_length)
+    print("Model loaded")
+
+    acc = testModels(model.models, opt.ntest, episode_length)
+    print("Model accuracies")
+    print(acc)
+    best, ind = acc:max(1)
+    best = best[1]
+    ind = ind[1]
+    print(string.format("Best model is model %d with acc %f", ind, best))
+    best_model = model.models[ind]
+    if CUDA then
+        best_model = best_model:double()
+    end
+    torch.save(opt.savedir .. '/best_individual_model', best_model, 'ascii')
 end
