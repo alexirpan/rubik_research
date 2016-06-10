@@ -13,6 +13,9 @@ doing something believed to be difficult. I'm more interested in finding out
 how well a neural net can recreate/imitate search.
 
 If I have time I'll update this README. This is highly unrefined research code
-and as of now I have no plans to make it more readable to maintain it or make
-it more readable to other people, becaues I need to get better results first.
-Off the top of my head, you'll need Torch and the rnn library for Torch.
+and as of now I have no plans to clean it up or make
+it more readable to other people.
+Off the top of my head, you'll need Torch and the rnn library for Torch. (There's
+code for parallel data set generation that needs the parallel library, but turns out
+dataset generation is fast enough to make it a premature optimization, and you shouldn't
+need it for training.)
