@@ -1,3 +1,10 @@
+READ BEFORE CLONING
+----------------------------------------------------------------
+**This repo is enormous, several GB big. I decided to save all my models from all my
+experiments, some of which took up quite a bit of space because I didn't even try
+for space efficiency. Cloning this will take a long time and a lot of space. I'm
+not saying you can't do it, just know what you're getting into.**
+
 This is the code I'm using for a research side project. Basically, I'm throwing
 neural nets at a Rubik's Cube to see how well the neural net can learn
 the dynamics of a Rubik's Cube problem. Past research has shown the Rubik's
@@ -8,4 +15,4 @@ how well a neural net can recreate/imitate search.
 If I have time I'll update this README. This is highly unrefined research code
 and as of now I have no plans to make it more readable to maintain it or make
 it more readable to other people, becaues I need to get better results first.
-Off the top of my head, you'll need at least Torch and the rnn library for Torch.
+Off the top of my head, you'll need Torch and the rnn library for Torch.
